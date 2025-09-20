@@ -42,3 +42,22 @@ jspm_packages/
 
 # VSCode settings
 .vscode/
+
+# Expo
+.expo/
+.expo-shared/
+
+# React Native
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+
+# Metro
+.metro-health-check*
+
+# Flipper
+ios/Pods/
