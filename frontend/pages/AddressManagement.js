@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
+import * as Location from 'expo-location';
+import { reverseGeocode } from '../services/mapsService';
 
 export default function AddressManagement({ navigation }) {
   const [addresses, setAddresses] = useState([
@@ -76,12 +78,77 @@ export default function AddressManagement({ navigation }) {
     );
   };
 
+  const getCurrentLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is required to get your current address.');
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = location.coords;
+      
+      // Use OpenStreetMap geocoding service
+      const geocodeResult = await reverseGeocode(latitude, longitude);
+      
+      if (geocodeResult.success) {
+        setNewAddress(prev => ({
+          ...prev,
+          address: geocodeResult.address
+        }));
+        
+        Alert.alert('Location Found', `Current address: ${geocodeResult.address}`);
+      } else {
+        // Fallback to coordinates if geocoding fails
+        const address = `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`;
+        setNewAddress(prev => ({
+          ...prev,
+          address: address
+        }));
+        
+        Alert.alert('Location Found', `Current location: ${address}`);
+      }
+    } catch (error) {
+      console.error('Error getting location:', error);
+      Alert.alert('Error', 'Failed to get current location. Please try again.');
+    }
+  };
+
   const handleSetDefault = (addressId) => {
     setAddresses(addresses.map(addr => ({
       ...addr,
       isDefault: addr.id === addressId
     })));
     Alert.alert('Success', 'Default address updated!');
+  };
+
+  const handleGetCurrentLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is required to get current address');
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({});
+      const address = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+
+      if (address.length > 0) {
+        const addr = address[0];
+        const fullAddress = `${addr.street || ''} ${addr.city || ''} ${addr.region || ''} ${addr.postalCode || ''}`.trim();
+        setNewAddress({
+          name: 'Current Location',
+          address: fullAddress || 'Current location address'
+        });
+        Alert.alert('Location Found', 'Current location address has been filled in the form');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Unable to get current location. Please try again.');
+    }
   };
 
   const handleBack = () => {
@@ -126,6 +193,9 @@ export default function AddressManagement({ navigation }) {
               multiline
               numberOfLines={3}
             />
+            <TouchableOpacity style={styles.locationButton} onPress={getCurrentLocation}>
+              <Text style={styles.locationButtonText}>📍 Use Current Location</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.formButtons}>
@@ -281,6 +351,19 @@ const styles = StyleSheet.create({
   textArea: {
     height: 80,
     textAlignVertical: 'top',
+  },
+  locationButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  locationButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   formButtons: {
     flexDirection: 'row',

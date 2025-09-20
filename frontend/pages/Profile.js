@@ -25,6 +25,26 @@ export default function Profile({ navigation }) {
     navigation.navigate('Dashboard');
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Logout', 
+          style: 'destructive',
+          onPress: () => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'UserProfileSelector' }],
+            });
+          }
+        }
+      ]
+    );
+  };
+
   const handleViewHistory = (history) => {
     Alert.alert('History Details', `Type: ${history.type}\nWeight: ${history.weight}\nDate: ${history.date}\nPoints: ${history.points}`);
   };
@@ -87,6 +107,9 @@ export default function Profile({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity style={styles.navButton} onPress={handleHome}>
           <Text style={styles.navButtonText}>Home</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.navButton, styles.logoutButton]} onPress={handleLogout}>
+          <Text style={[styles.navButtonText, styles.logoutButtonText]}>Logout</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -238,5 +261,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  logoutButton: {
+    backgroundColor: '#F44336',
+  },
+  logoutButtonText: {
+    color: '#fff',
   },
 });

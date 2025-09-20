@@ -75,7 +75,7 @@ export default function DeliveryDashboard({ navigation }) {
   };
 
   const handleSupport = () => {
-    Alert.alert('Support', 'Contact support for assistance.');
+    navigation.navigate('Support');
   };
 
   return (

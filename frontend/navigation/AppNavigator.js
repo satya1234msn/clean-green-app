@@ -14,6 +14,9 @@ import PickupScheduler from '../pages/PickupScheduler';
 import ScheduledPage from '../pages/ScheduledPage';
 import DeliveryPickupAccepted from '../pages/DeliveryPickupAccepted';
 import AddressManagement from '../pages/AddressManagement';
+import Support from '../pages/Support';
+import WarehouseNavigation from '../pages/WarehouseNavigation';
+import UserTrackingMap from '../components/UserTrackingMap';
 
 const Stack = createNativeStackNavigator();
 
@@ -34,6 +37,9 @@ export default function AppNavigator() {
       <Stack.Screen name="ScheduledPage" component={ScheduledPage} />
       <Stack.Screen name="DeliveryPickupAccepted" component={DeliveryPickupAccepted} />
       <Stack.Screen name="AddressManagement" component={AddressManagement} />
+      <Stack.Screen name="Support" component={Support} />
+      <Stack.Screen name="WarehouseNavigation" component={WarehouseNavigation} />
+      <Stack.Screen name="UserTrackingMap" component={UserTrackingMap} />
     </Stack.Navigator>
   );
 }

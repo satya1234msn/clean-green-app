@@ -52,7 +52,7 @@ export default function Dashboard({ navigation }) {
   };
 
   const handleSupport = () => {
-    alert('Support feature coming soon!');
+    navigation.navigate('Support');
   };
 
   const handleMoreHistory = () => {

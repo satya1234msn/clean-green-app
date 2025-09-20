@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import RealMap from '../components/RealMap';
 
 export default function DeliveryPickupAccepted({ navigation, route }) {
   const { pickupData } = route.params || {};
   
   const [pickupStatus, setPickupStatus] = useState('accepted'); // accepted, reached, picked
   const [showPickedButton, setShowPickedButton] = useState(false);
+  const [showReachedButton, setShowReachedButton] = useState(true);
   
   const pickupDetails = pickupData || {
     id: 1,
@@ -19,22 +21,33 @@ export default function DeliveryPickupAccepted({ navigation, route }) {
   };
 
   const handleOpenMaps = () => {
-    Alert.alert('Open Maps', 'Opening route in maps application...');
+    // Navigate to full map view
+    navigation.navigate('MapView', {
+      pickupData: pickupData,
+      showFullMap: true,
+    });
   };
 
   const handleReached = () => {
     setPickupStatus('reached');
     setShowPickedButton(true);
+    setShowReachedButton(false); // Hide the reached button
     Alert.alert('Status Updated', 'You have marked as reached the pickup location!');
   };
 
   const handlePicked = () => {
     setPickupStatus('picked');
     Alert.alert('Pickup Completed', `You have successfully picked up the waste and earned ₹${pickupDetails.earnings}!`);
+    // Navigate to warehouse navigation after a short delay
+    setTimeout(() => {
+      navigation.navigate('WarehouseNavigation', {
+        pickupData: pickupDetails
+      });
+    }, 1500);
   };
 
   const handleSupport = () => {
-    Alert.alert('Support', 'Contact support for assistance.');
+    navigation.navigate('Support');
   };
 
   const handleCallCustomer = () => {
@@ -50,22 +63,28 @@ export default function DeliveryPickupAccepted({ navigation, route }) {
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Route map</Text>
+        <View style={styles.placeholder} />
       </View>
 
       {/* Map Section */}
       <View style={styles.mapSection}>
         <View style={styles.mapContainer}>
-          <Text style={styles.mapIcon}>🗺️</Text>
-          <Text style={styles.mapText}>Live Route Map</Text>
-          <Text style={styles.mapSubtext}>Real-time navigation</Text>
+          <Text style={styles.mapTitle}>Route map</Text>
+          <View style={styles.mapPlaceholder}>
+            <Text style={styles.mapIcon}>🗺️</Text>
+            <Text style={styles.mapText}>Route map</Text>
+          </View>
+          <TouchableOpacity style={styles.openMapsButton} onPress={handleOpenMaps}>
+            <Text style={styles.openMapsButtonText}>open with maps</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.openMapsButton} onPress={handleOpenMaps}>
-          <Text style={styles.openMapsText}>open with maps</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Pickup Details Section */}
@@ -89,7 +108,7 @@ export default function DeliveryPickupAccepted({ navigation, route }) {
             </View>
           </View>
           <View style={styles.earningsRow}>
-            <Text style={styles.earningsLabel}>earning for this pickup: ₹{pickupDetails.earnings}</Text>
+            <Text style={styles.earningsLabel}>earning for this Pickup: Z</Text>
           </View>
         </View>
       </View>
@@ -97,12 +116,14 @@ export default function DeliveryPickupAccepted({ navigation, route }) {
       {/* Action Buttons and Customer Info */}
       <View style={styles.bottomSection}>
         <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={[styles.actionButton, pickupStatus === 'reached' && styles.actionButtonActive]} 
-            onPress={handleReached}
-          >
-            <Text style={styles.actionButtonText}>reached</Text>
-          </TouchableOpacity>
+          {showReachedButton && (
+            <TouchableOpacity 
+              style={[styles.actionButton, pickupStatus === 'reached' && styles.actionButtonActive]} 
+              onPress={handleReached}
+            >
+              <Text style={styles.actionButtonText}>reached</Text>
+            </TouchableOpacity>
+          )}
           {showPickedButton && (
             <TouchableOpacity 
               style={[styles.actionButton, pickupStatus === 'picked' && styles.actionButtonActive]} 
@@ -117,7 +138,7 @@ export default function DeliveryPickupAccepted({ navigation, route }) {
         </View>
 
         <View style={styles.customerInfo}>
-          <Text style={styles.customerName}>{pickupDetails.customerName}</Text>
+          <Text style={styles.customerName}>customer name</Text>
           <View style={styles.customerActions}>
             <TouchableOpacity style={styles.customerActionButton} onPress={handleViewCustomerProfile}>
               <Text style={styles.customerActionIcon}>👤</Text>
@@ -126,12 +147,12 @@ export default function DeliveryPickupAccepted({ navigation, route }) {
               <Text style={styles.customerActionIcon}>📞</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.customerActionButton} onPress={handleMessageCustomer}>
-              <Text style={styles.customerActionIcon}>💬</Text>
+              <Text style={styles.customerActionIcon}>✉️</Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -157,8 +178,77 @@ const styles = StyleSheet.create({
     color: '#1B5E20',
     textAlign: 'center',
   },
+  backButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#2E7D32',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  mapsButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#4CAF50',
+    borderRadius: 8,
+  },
+  mapsButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   mapSection: {
+    flex: 1,
     padding: 20,
+  },
+  mapContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  mapTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1B5E20',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  mapPlaceholder: {
+    flex: 1,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  mapIcon: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  mapText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  openMapsButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  openMapsButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   mapContainer: {
     backgroundColor: '#fff',

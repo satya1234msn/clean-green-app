@@ -13,9 +13,11 @@ export default function AfterScheduling({ navigation, route }) {
   };
 
   const handleViewMap = () => {
-    navigation.navigate('MapView', {
-      wasteType,
-      immediatePickup,
+    navigation.navigate('UserTrackingMap', {
+      pickupData: {
+        type: wasteType,
+        immediatePickup,
+      }
     });
   };
 
@@ -31,30 +33,27 @@ export default function AfterScheduling({ navigation, route }) {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>After scheduling</Text>
+        <Text style={styles.headerTitle}>Pickup Scheduling</Text>
       </View>
 
       <View style={styles.content}>
         {/* Congratulations Section */}
         <View style={styles.congratsContainer}>
           <Text style={styles.congratsText}>Congrats!</Text>
-          <Text style={styles.rewardsText}>
-            you have earned <Text style={styles.rewardAmount}>{earnedRewards} points</Text>
-          </Text>
+          <Text style={styles.rewardsText}>you have earned</Text>
         </View>
 
         {/* Coupon Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Coupon</Text>
+          <Text style={styles.sectionTitle}>coupon</Text>
           <View style={styles.couponContainer}>
             <Text style={styles.couponCode}>CLEAN{earnedRewards}</Text>
-            <Text style={styles.couponDescription}>Use this code for your next pickup</Text>
           </View>
         </View>
 
         {/* Map Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Map</Text>
+          <Text style={styles.sectionTitle}>map</Text>
           <View style={styles.mapContainer}>
             <Text style={styles.mapPlaceholder}>🗺️ Map View</Text>
             <Text style={styles.mapDescription}>
@@ -70,9 +69,14 @@ export default function AfterScheduling({ navigation, route }) {
         <View style={styles.section}>
           <View style={styles.executiveContainer}>
             <Text style={styles.sectionTitle}>Pickup executive details</Text>
-            <TouchableOpacity style={styles.callButton} onPress={handleCallExecutive}>
-              <Text style={styles.callButtonText}>📞</Text>
-            </TouchableOpacity>
+            <View style={styles.executiveIcons}>
+              <TouchableOpacity style={styles.callButton} onPress={handleCallExecutive}>
+                <Text style={styles.callButtonText}>📞</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.messageButton} onPress={handleCallExecutive}>
+                <Text style={styles.messageButtonText}>💬</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={styles.executiveInfo}>
             <Text style={styles.executiveName}>Rajesh Kumar</Text>
@@ -101,10 +105,10 @@ export default function AfterScheduling({ navigation, route }) {
           <Text style={styles.navButtonText}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navButton} onPress={handleSchedule}>
-          <Text style={styles.navButtonText}>Schedule</Text>
+          <Text style={styles.navButtonText}>Schedule other</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navButton} onPress={handleViewMap}>
-          <Text style={styles.navButtonText}>View Map</Text>
+          <Text style={styles.navButtonText}>View map</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -227,6 +231,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  executiveIcons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   callButton: {
     backgroundColor: '#4CAF50',
     width: 40,
@@ -237,6 +245,18 @@ const styles = StyleSheet.create({
   },
   callButtonText: {
     fontSize: 20,
+  },
+  messageButton: {
+    backgroundColor: '#2196F3',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  messageButtonText: {
+    color: '#fff',
+    fontSize: 18,
   },
   executiveInfo: {
     backgroundColor: '#fff',

@@ -20,24 +20,77 @@ export default function WasteUploadNew({ navigation }) {
     setSelectedWasteType(type);
   };
 
-  const handleImageUpload = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission required', 'Permission to access camera roll is required!');
-      return;
-    }
+  const handleImageUpload = () => {
+    Alert.alert(
+      'Select Photo',
+      'Choose how you want to add a photo',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Gallery', onPress: handleGalleryUpload },
+        { text: 'Camera', onPress: handleCameraCapture },
+      ]
+    );
+  };
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 1,
-    });
+  const handleGalleryUpload = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (permissionResult.granted === false) {
+        Alert.alert('Permission required', 'Permission to access camera roll is required!');
+        return;
+      }
 
-    if (!result.canceled && uploadedImages.length < 3) {
-      setUploadedImages([...uploadedImages, result.assets[0].uri]);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images',
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        allowsMultipleSelection: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0 && uploadedImages.length < 3) {
+        setUploadedImages([...uploadedImages, result.assets[0].uri]);
+        Alert.alert('Success', 'Photo uploaded successfully!');
+      } else if (uploadedImages.length >= 3) {
+        Alert.alert('Limit Reached', 'You can only upload up to 3 photos');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      Alert.alert('Error', 'Failed to upload image. Please try again.');
     }
+  };
+
+  const handleCameraCapture = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (permissionResult.granted === false) {
+        Alert.alert('Permission required', 'Permission to access camera is required!');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0 && uploadedImages.length < 3) {
+        setUploadedImages([...uploadedImages, result.assets[0].uri]);
+        Alert.alert('Success', 'Photo captured successfully!');
+      } else if (uploadedImages.length >= 3) {
+        Alert.alert('Limit Reached', 'You can only upload up to 3 photos');
+      }
+    } catch (error) {
+      console.error('Error capturing image:', error);
+      Alert.alert('Error', 'Failed to capture image. Please try again.');
+    }
+  };
+
+  const handleRemoveImage = (index) => {
+    const newImages = uploadedImages.filter((_, i) => i !== index);
+    setUploadedImages(newImages);
   };
 
   const handleSchedulePickup = () => {
@@ -75,15 +128,15 @@ export default function WasteUploadNew({ navigation }) {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.profileIcon} onPress={handleProfile}>
-              <Text style={styles.profileIconText}>👤</Text>
-            </TouchableOpacity>
-            <View style={styles.headerTitle}>
-              <Text style={styles.headerTitleText}>Waste Upload</Text>
-            </View>
-          </View>
+          {/* Header */}
+              <View style={styles.header}>
+                <TouchableOpacity style={styles.profileIcon} onPress={handleProfile}>
+                  <Text style={styles.profileIconText}>👤</Text>
+                </TouchableOpacity>
+                <View style={styles.headerTitle}>
+                  <Text style={styles.headerTitleText}>user waste upload</Text>
+                </View>
+              </View>
 
       <View style={styles.content}>
         {/* Main Heading */}
@@ -94,7 +147,7 @@ export default function WasteUploadNew({ navigation }) {
 
         {/* Waste Type Selection */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select type of waste:</Text>
+          <Text style={styles.sectionTitle}>Select type of waste</Text>
           <View style={styles.wasteTypeContainer}>
             {wasteTypes.map((type) => (
               <TouchableOpacity
@@ -159,7 +212,15 @@ export default function WasteUploadNew({ navigation }) {
           <Text style={styles.sectionTitle}>Upload Photo</Text>
           <View style={styles.photoContainer}>
             {uploadedImages.map((uri, index) => (
-              <Image key={index} source={{ uri }} style={styles.uploadedImage} />
+              <View key={index} style={styles.imageContainer}>
+                <Image source={{ uri }} style={styles.uploadedImage} />
+                <TouchableOpacity 
+                  style={styles.removeButton} 
+                  onPress={() => handleRemoveImage(index)}
+                >
+                  <Text style={styles.removeButtonText}>✕</Text>
+                </TouchableOpacity>
+              </View>
             ))}
             {uploadedImages.length < 3 && (
               <TouchableOpacity style={styles.uploadButton} onPress={handleImageUpload}>
@@ -339,6 +400,26 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 12,
     backgroundColor: '#E0E0E0',
+  },
+  imageContainer: {
+    position: 'relative',
+    marginRight: 8,
+  },
+  removeButton: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#F44336',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   uploadButton: {
     width: 80,
