@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authAPI, apiUtils } from './apiService';
+import { defaultAPIs } from './apiService';
+
+const { authAPI, apiUtils } = defaultAPIs;
 
 // Authentication service with backend integration
 export const authService = {

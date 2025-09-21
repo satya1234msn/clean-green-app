@@ -1,24 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-
-// Base URL for the API
-// Use your computer's IP address instead of localhost for device testing
 import getEnvVars from '../config';
 
 const { API_BASE_URL } = getEnvVars();
 
-const BASE_URL = API_BASE_URL;
-
-// Create axios instance
+// Create axios instance with better timeout and error handling
 const api = axios.create({
-  baseURL: BASE_URL,
-  timeout: 10000,
+  baseURL: API_BASE_URL,
+  timeout: 30000, // Increased timeout
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor with better error handling
 api.interceptors.request.use(
   async (config) => {
     try {
@@ -33,10 +28,12 @@ api.interceptors.request.use(
         baseURL: config.baseURL,
         fullURL: `${config.baseURL}${config.url}`
       });
+      
+      return config;
     } catch (error) {
       console.error('Error getting auth token:', error);
+      return config;
     }
-    return config;
   },
   (error) => {
     console.error('Request interceptor error:', error);
@@ -44,7 +41,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle errors
+// Response interceptor with better error handling
 api.interceptors.response.use(
   (response) => {
     return response;
@@ -59,160 +56,103 @@ api.interceptors.response.use(
     });
     
     if (error.response?.status === 401) {
-      // Token expired or invalid
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('userData');
-      // You might want to redirect to login screen here
     }
+    
+    // Better error messages
+    if (error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
+      error.userMessage = 'Network connection failed. Please check your internet connection and try again.';
+    } else if (error.code === 'ECONNABORTED') {
+      error.userMessage = 'Request timeout. Please try again.';
+    } else if (error.response?.status >= 500) {
+      error.userMessage = 'Server error. Please try again later.';
+    }
+    
     return Promise.reject(error);
   }
 );
 
-// Auth API
-export const authAPI = {
-  // Register user
-  register: async (userData) => {
-    const response = await api.post('/auth/register', userData);
-    return response.data;
+// Upload API with proper FormData handling
+export const uploadAPI = {
+  // Upload single image with proper error handling
+  uploadImage: async (imageUri) => {
+    try {
+      const formData = new FormData();
+      formData.append('image', {
+        uri: imageUri,
+        type: 'image/jpeg',
+        name: 'image.jpg',
+      });
+
+      const response = await api.post('/uploads/image', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 60000, // 60 seconds for image upload
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Image upload error:', error);
+      throw error;
+    }
   },
 
-  // Login user
-  login: async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
-    return response.data;
-  },
+  // Upload multiple images
+  uploadMultipleImages: async (imageUris) => {
+    try {
+      const formData = new FormData();
+      imageUris.forEach((uri, index) => {
+        formData.append('images', {
+          uri: uri,
+          type: 'image/jpeg',
+          name: `image_${index}.jpg`,
+        });
+      });
 
-  // Verify token
-  verifyToken: async () => {
-    const response = await api.post('/auth/verify-token');
-    return response.data;
-  },
-};
-
-// User API
-export const userAPI = {
-  // Get user profile
-  getProfile: async () => {
-    const response = await api.get('/users/profile');
-    return response.data;
-  },
-
-  // Update user profile
-  updateProfile: async (profileData) => {
-    const response = await api.put('/users/profile', profileData);
-    return response.data;
-  },
-
-  // Get dashboard data
-  getDashboard: async () => {
-    const response = await api.get('/users/dashboard');
-    return response.data;
-  },
-
-  // Get user history
-  getHistory: async (page = 1, limit = 5) => {
-    const response = await api.get(`/users/history?page=${page}&limit=${limit}`);
-    return response.data;
-  },
-
-  // Get earnings (for delivery agents)
-  getEarnings: async () => {
-    const response = await api.get('/users/earnings');
-    return response.data;
-  },
-
-  // Update online status (for delivery agents)
-  updateOnlineStatus: async (isOnline) => {
-    const response = await api.put('/users/online-status', { isOnline });
-    return response.data;
+      const response = await api.post('/uploads/multiple', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 60000,
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Multiple images upload error:', error);
+      throw error;
+    }
   },
 };
 
-// Pickup API
-export const pickupAPI = {
-  // Create pickup request
-  createPickup: async (pickupData) => {
-    const response = await api.post('/pickups', pickupData);
-    return response.data;
-  },
-
-  // Get available pickups (for delivery agents)
-  getAvailablePickups: async () => {
-    const response = await api.get('/pickups/available');
-    return response.data;
-  },
-
-  // Accept pickup request
-  acceptPickup: async (pickupId) => {
-    const response = await api.put(`/pickups/${pickupId}/accept`);
-    return response.data;
-  },
-
-  // Reject pickup request
-  rejectPickup: async (pickupId) => {
-    const response = await api.put(`/pickups/${pickupId}/reject`);
-    return response.data;
-  },
-
-  // Update pickup status
-  updatePickupStatus: async (pickupId, status, location, notes) => {
-    const response = await api.put(`/pickups/${pickupId}/status`, {
-      status,
-      location,
-      notes,
-    });
-    return response.data;
-  },
-
-  // Rate pickup
-  ratePickup: async (pickupId, rating, review) => {
-    const response = await api.post(`/pickups/${pickupId}/rate`, {
-      rating,
-      review,
-    });
-    return response.data;
-  },
-
-  // Get pickup details
-  getPickupDetails: async (pickupId) => {
-    const response = await api.get(`/pickups/${pickupId}`);
-    return response.data;
-  },
-
-  // Get user pickups
-  getUserPickups: async (status = 'all') => {
-    const response = await api.get(`/pickups/user?status=${status}`);
-    return response.data;
-  },
-};
-
-// Address API
+// Address API - User-specific addresses
 export const addressAPI = {
-  // Get user addresses
+  // Get user's addresses only
   getAddresses: async () => {
     const response = await api.get('/addresses');
     return response.data;
   },
 
-  // Create new address
+  // Create new address for current user
   createAddress: async (addressData) => {
     const response = await api.post('/addresses', addressData);
     return response.data;
   },
 
-  // Update address
+  // Update user's address
   updateAddress: async (addressId, addressData) => {
     const response = await api.put(`/addresses/${addressId}`, addressData);
     return response.data;
   },
 
-  // Delete address
+  // Delete user's address
   deleteAddress: async (addressId) => {
     const response = await api.delete(`/addresses/${addressId}`);
     return response.data;
   },
 
-  // Set default address
+  // Set default address for user
   setDefaultAddress: async (addressId) => {
     const response = await api.put(`/addresses/${addressId}/default`);
     return response.data;
@@ -226,178 +166,146 @@ export const addressAPI = {
     });
     return response.data;
   },
+
+  // Search addresses (like Zomato/Swiggy)
+  searchAddresses: async (query) => {
+    const response = await api.get(`/addresses/search?q=${encodeURIComponent(query)}`);
+    return response.data;
+  },
 };
 
-// Reward API
+// User API - Ensure user-specific data
+export const userAPI = {
+  // Get current user profile
+  getProfile: async () => {
+    const response = await api.get('/users/profile');
+    return response.data;
+  },
+
+  // Update user profile
+  updateProfile: async (profileData) => {
+    const response = await api.put('/users/profile', profileData);
+    return response.data;
+  },
+
+  // Get user-specific dashboard data
+  getDashboard: async () => {
+    const response = await api.get('/users/dashboard');
+    return response.data;
+  },
+
+  // Get user's pickup history
+  getHistory: async (page = 1, limit = 10) => {
+    const response = await api.get(`/users/history?page=${page}&limit=${limit}`);
+    return response.data;
+  },
+
+  // Update online status (for delivery agents)
+  updateOnlineStatus: async (isOnline) => {
+    const response = await api.put('/users/online-status', { isOnline });
+    return response.data;
+  },
+};
+
+// Pickup API - User-specific pickups
+export const pickupAPI = {
+  // Create pickup request for current user
+  createPickup: async (pickupData) => {
+    const response = await api.post('/pickups', pickupData);
+    return response.data;
+  },
+
+  // Get current user's pickups
+  getUserPickups: async (status = 'all') => {
+    const response = await api.get(`/pickups/user?status=${status}`);
+    return response.data;
+  },
+
+  // Get pickup details (only if user owns it)
+  getPickupDetails: async (pickupId) => {
+    const response = await api.get(`/pickups/${pickupId}`);
+    return response.data;
+  },
+
+  // Rate pickup (only for user's pickups)
+  ratePickup: async (pickupId, rating, review) => {
+    const response = await api.post(`/pickups/${pickupId}/rate`, {
+      rating,
+      review,
+    });
+    return response.data;
+  },
+
+  // Get available pickups (for delivery agents)
+  getAvailablePickups: async () => {
+    const response = await api.get('/pickups/available');
+    return response.data;
+  },
+
+  // Accept pickup request (for delivery agents)
+  acceptPickup: async (pickupId) => {
+    const response = await api.put(`/pickups/${pickupId}/accept`);
+    return response.data;
+  },
+
+  // Update pickup status (for delivery agents)
+  updatePickupStatus: async (pickupId, status, location, notes) => {
+    const response = await api.put(`/pickups/${pickupId}/status`, {
+      status,
+      location,
+      notes,
+    });
+    return response.data;
+  },
+};
+
+// Reward API - User-specific rewards
 export const rewardAPI = {
-  // Get user rewards
+  // Get current user's rewards
   getRewards: async (page = 1, limit = 10, status = 'all') => {
     const response = await api.get(`/rewards?page=${page}&limit=${limit}&status=${status}`);
     return response.data;
   },
 
-  // Redeem reward
+  // Redeem user's reward
   redeemReward: async (rewardId) => {
     const response = await api.put(`/rewards/${rewardId}/redeem`);
     return response.data;
   },
 
-  // Get reward statistics
+  // Get user's reward statistics
   getRewardStats: async () => {
     const response = await api.get('/rewards/stats');
     return response.data;
   },
 };
 
-// Delivery API
-export const deliveryAPI = {
-  // Get available pickups
-  getAvailablePickups: async () => {
-    const response = await api.get('/deliveries/available');
-    return response.data;
-  },
-
-  // Get my pickups
-  getMyPickups: async (status = 'all') => {
-    const response = await api.get(`/deliveries/my-pickups?status=${status}`);
-    return response.data;
-  },
-
-  // Update online status
-  updateOnlineStatus: async (isOnline) => {
-    const response = await api.put('/deliveries/online-status', { isOnline });
-    return response.data;
-  },
-
-  // Get earnings
-  getEarnings: async () => {
-    const response = await api.get('/deliveries/earnings');
-    return response.data;
-  },
-
-  // Request withdrawal
-  requestWithdrawal: async (amount, paymentMethod, paymentDetails) => {
-    const response = await api.post('/deliveries/withdraw', {
-      amount,
-      paymentMethod,
-      paymentDetails,
-    });
-    return response.data;
-  },
-
-  // Accept pickup
-  acceptPickup: async (pickupId) => {
-    const response = await api.post(`/pickups/${pickupId}/accept`);
-    return response.data;
-  },
-
-  // Reject pickup
-  rejectPickup: async (pickupId) => {
-    const response = await api.post(`/pickups/${pickupId}/reject`);
-    return response.data;
-  },
-
-  // Update pickup status
-  updatePickupStatus: async (pickupId, status, location) => {
-    const response = await api.put(`/pickups/${pickupId}/status`, {
-      status,
-      location
-    });
-    return response.data;
-  },
+const authAPI = {
+  login: (credentials) => api.post('/auth/login', credentials).then(res => res.data),
+  register: (userData) => api.post('/auth/register', userData).then(res => res.data),
+  verifyToken: () => api.post('/auth/verify-token').then(res => res.data),
 };
 
-// Upload API
-export const uploadAPI = {
-  // Upload single image
-  uploadImage: async (imageUri) => {
-    const formData = new FormData();
-    formData.append('image', {
-      uri: imageUri,
-      type: 'image/jpeg',
-      name: 'image.jpg',
-    });
-
-    const response = await api.post('/uploads/image', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
-  },
-
-  // Upload multiple images
-  uploadMultipleImages: async (imageUris) => {
-    const formData = new FormData();
-    imageUris.forEach((uri, index) => {
-      formData.append('images', {
-        uri: uri,
-        type: 'image/jpeg',
-        name: `image_${index}.jpg`,
-      });
-    });
-
-    const response = await api.post('/uploads/multiple', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
-  },
-
-  // Upload delivery documents
-  uploadDocument: async (documentUri, documentType) => {
-    const formData = new FormData();
-    formData.append('document', {
-      uri: documentUri,
-      type: 'image/jpeg',
-      name: 'document.jpg',
-    });
-    formData.append('documentType', documentType);
-
-    const response = await api.post('/uploads/delivery-documents', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
-  },
-
-  // Delete uploaded image
-  deleteImage: async (publicId) => {
-    const response = await api.delete(`/uploads/${publicId}`);
-    return response.data;
-  },
-};
-
-// Utility functions
-export const apiUtils = {
-  // Store auth data
-  storeAuthData: async (token, userData) => {
+const apiUtils = {
+  storeAuthData: async (token, user) => {
     try {
       await AsyncStorage.setItem('authToken', token);
-      await AsyncStorage.setItem('userData', JSON.stringify(userData));
+      await AsyncStorage.setItem('userData', JSON.stringify(user));
     } catch (error) {
       console.error('Error storing auth data:', error);
     }
   },
-
-  // Get stored auth data
   getStoredAuthData: async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
-      const userData = await AsyncStorage.getItem('userData');
-      return {
-        token,
-        userData: userData ? JSON.parse(userData) : null,
-      };
+      const userDataString = await AsyncStorage.getItem('userData');
+      const userData = userDataString ? JSON.parse(userDataString) : null;
+      return { token, userData };
     } catch (error) {
       console.error('Error getting stored auth data:', error);
       return { token: null, userData: null };
     }
   },
-
-  // Clear auth data
   clearAuthData: async () => {
     try {
       await AsyncStorage.removeItem('authToken');
@@ -406,29 +314,23 @@ export const apiUtils = {
       console.error('Error clearing auth data:', error);
     }
   },
-
-  // Handle API errors
   handleError: (error) => {
-    if (error.response) {
-      // Server responded with error status
-      return {
-        message: error.response.data?.message || 'An error occurred',
-        status: error.response.status,
-      };
-    } else if (error.request) {
-      // Request was made but no response received
-      return {
-        message: 'Network error. Please check your connection.',
-        status: 0,
-      };
-    } else {
-      // Something else happened
-      return {
-        message: error.message || 'An unexpected error occurred',
-        status: 0,
-      };
+    if (error.response && error.response.data && error.response.data.message) {
+      return { message: error.response.data.message };
     }
-  },
+    return { message: error.message || 'An unknown error occurred' };
+  }
+};
+
+const exportedAPIs = {
+  authAPI,
+  apiUtils,
+  userAPI,
+  addressAPI,
+  pickupAPI,
+  rewardAPI,
+  uploadAPI
 };
 
 export default api;
+export { exportedAPIs as defaultAPIs };

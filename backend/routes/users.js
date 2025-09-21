@@ -1,282 +1,324 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const Pickup = require('../models/Pickup');
+const Address = require('../models/Address');
 const Reward = require('../models/Reward');
-const { protect, restrictTo } = require('../middleware/auth');
+const { protect, restrictTo } = require('../middleware/auth'); // Destructure the functions
+const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
 
 const router = express.Router();
 
-// @route   GET /api/users/profile
-// @desc    Get user profile
-// @access  Private
+// Get user profile
 router.get('/profile', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
-      .populate('addresses')
-      .populate('defaultAddress');
+      .populate('addresses defaultAddress')
+      .select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found'
+      });
+    }
 
     res.status(200).json({
       status: 'success',
-      data: {
-        user: user.getPublicProfile()
-      }
+      data: user
     });
   } catch (error) {
-    console.error('Get profile error:', error);
+    console.error('Error fetching user profile:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Server error while fetching profile'
+      message: 'Failed to fetch profile'
     });
   }
 });
 
-// @route   PUT /api/users/profile
-// @desc    Update user profile
-// @access  Private
-router.put('/profile', [
-  body('name').optional().trim().isLength({ min: 2, max: 50 }),
-  body('phone').optional().matches(/^\+?[\d\s-()]+$/),
-  body('vehicleType').optional().isIn(['bike', 'scooter', 'car', 'van']),
-  body('licenseNumber').optional().trim()
-], protect, async (req, res) => {
+// Update user profile
+router.put('/profile', protect, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
-
-    const allowedUpdates = ['name', 'phone', 'vehicleType', 'licenseNumber'];
-    const updates = {};
-
-    allowedUpdates.forEach(field => {
-      if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
-      }
-    });
+    const { name, phone, profileImage } = req.body;
+    
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (phone) updateData.phone = phone;
+    if (profileImage) updateData.profileImage = profileImage;
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      updates,
+      updateData,
       { new: true, runValidators: true }
-    );
+    ).populate('addresses defaultAddress').select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found'
+      });
+    }
 
     res.status(200).json({
       status: 'success',
       message: 'Profile updated successfully',
-      data: {
-        user: user.getPublicProfile()
-      }
+      data: { user }
     });
   } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({
+    console.error('Error updating profile:', error);
+    res.status(400).json({
       status: 'error',
-      message: 'Server error while updating profile'
+      message: error.message || 'Failed to update profile'
     });
   }
 });
 
-// @route   PUT /api/users/online-status
-// @desc    Update online status (for delivery agents)
-// @access  Private
+// Get user dashboard data (user-specific)
+router.get('/dashboard', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Get user's pickup stats
+    const totalPickups = await Pickup.countDocuments({ user: userId });
+    const completedPickups = await Pickup.countDocuments({ 
+      user: userId, 
+      status: 'completed' 
+    });
+    const pendingPickups = await Pickup.countDocuments({ 
+      user: userId, 
+      status: { $in: ['pending', 'accepted', 'in_progress'] }
+    });
+
+    // Get user's total points
+    const user = await User.findById(userId);
+    const totalPoints = user.totalPoints || 0;
+
+    // Get recent uploads (user's pickups)
+    const recentPickups = await Pickup.find({ user: userId })
+      .populate('address')
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    // Separate recent uploads by status
+    const recentUploads = {
+      accepted: recentPickups.find(p => p.status === 'completed'),
+      rejected: recentPickups.find(p => p.status === 'cancelled'),
+      pending: recentPickups.filter(p => ['pending', 'accepted', 'in_progress'].includes(p.status))
+    };
+
+    // Get user's rewards (if Reward model exists)
+    let rewards = [];
+    try {
+      rewards = await Reward.find({ user: userId, status: 'active' })
+        .sort({ createdAt: -1 })
+        .limit(3);
+    } catch (rewardError) {
+      console.log('Reward model not found, using empty array');
+      rewards = [];
+    }
+
+    // Calculate environmental impact (based on completed pickups)
+    const completedPickupsData = await Pickup.find({ 
+      user: userId, 
+      status: 'completed' 
+    });
+    
+    const totalWeight = completedPickupsData.reduce((sum, pickup) => 
+      sum + (pickup.actualWeight || pickup.estimatedWeight || 0), 0
+    );
+
+    const environmentalImpact = {
+      wasteCollected: totalWeight,
+      co2Saved: Math.round(totalWeight * 2.5), // Rough estimate
+      treesEquivalent: Math.round(totalWeight * 0.1),
+      landfillDiverted: totalWeight
+    };
+
+    // Get monthly stats for chart
+    const monthlyStats = await getMonthlyStats(userId);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        stats: {
+          totalPickups,
+          completedPickups,
+          pendingPickups,
+          totalPoints
+        },
+        recentUploads,
+        rewards,
+        environmentalImpact,
+        monthlyStats,
+        user: {
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          profileImage: user.profileImage
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch dashboard data'
+    });
+  }
+});
+
+// Helper function to get monthly stats
+async function getMonthlyStats(userId) {
+  try {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const monthlyData = await Pickup.aggregate([
+      {
+        $match: {
+          user: new mongoose.Types.ObjectId(userId),
+          status: 'completed',
+          createdAt: { $gte: sixMonthsAgo }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' }
+          },
+          count: { $sum: 1 },
+          points: { $sum: '$points' },
+          weight: { $sum: { $ifNull: ['$actualWeight', '$estimatedWeight'] } }
+        }
+      },
+      {
+        $sort: { '_id.year': 1, '_id.month': 1 }
+      }
+    ]);
+
+    // Fill in missing months with zero data
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      
+      const existingData = monthlyData.find(d => 
+        d._id.year === year && d._id.month === month
+      );
+      
+      months.push({
+        month: date.toLocaleString('default', { month: 'short' }),
+        pickups: existingData ? existingData.count : 0,
+        points: existingData ? existingData.points : 0,
+        weight: existingData ? existingData.weight : 0
+      });
+    }
+
+    return months;
+  } catch (error) {
+    console.error('Error getting monthly stats:', error);
+    return [];
+  }
+}
+
+// Get user history (pickups)
+router.get('/history', protect, async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    
+    const history = await Pickup.find({ user: req.user._id })
+      .populate('address deliveryAgent')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Pickup.countDocuments({ user: req.user._id });
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        history,
+        pagination: {
+          current: parseInt(page),
+          total: Math.ceil(total / limit),
+          count: history.length,
+          totalRecords: total
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching user history:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch history'
+    });
+  }
+});
+
+// Update online status (for delivery agents)
 router.put('/online-status', protect, restrictTo('delivery'), async (req, res) => {
   try {
     const { isOnline } = req.body;
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { isOnline },
+      { isOnline: !!isOnline },
       { new: true }
-    );
+    ).select('-password');
 
     res.status(200).json({
       status: 'success',
-      message: `Status updated to ${isOnline ? 'online' : 'offline'}`,
-      data: {
-        user: user.getPublicProfile()
-      }
+      message: 'Online status updated successfully',
+      data: { user }
     });
   } catch (error) {
-    console.error('Update online status error:', error);
+    console.error('Error updating online status:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Server error while updating status'
+      message: 'Failed to update online status'
     });
   }
 });
 
-// @route   GET /api/users/dashboard
-// @desc    Get user dashboard data
-// @access  Private
-router.get('/dashboard', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const userRole = req.user.role;
-
-    if (userRole === 'user') {
-      // Get user dashboard data
-      const recentUploads = await Pickup.find({ user: userId })
-        .sort({ createdAt: -1 })
-        .limit(2)
-        .populate('address');
-
-      const acceptedUpload = recentUploads.find(pickup => pickup.status === 'completed');
-      const rejectedUpload = recentUploads.find(pickup => pickup.status === 'rejected');
-
-      const rewards = await Reward.find({ 
-        user: userId, 
-        isRedeemed: false,
-        expiryDate: { $gt: new Date() }
-      }).sort({ issuedDate: -1 });
-
-      const totalPickups = await Pickup.countDocuments({ user: userId });
-      const completedPickups = await Pickup.countDocuments({ 
-        user: userId, 
-        status: 'completed' 
-      });
-
-      const totalPoints = await Pickup.aggregate([
-        { $match: { user: userId, status: 'completed' } },
-        { $group: { _id: null, total: { $sum: '$points' } } }
-      ]);
-
-      res.status(200).json({
-        status: 'success',
-        data: {
-          recentUploads: {
-            accepted: acceptedUpload,
-            rejected: rejectedUpload
-          },
-          rewards: rewards.slice(0, 2), // Show only 2 recent rewards
-          stats: {
-            totalPickups,
-            completedPickups,
-            totalPoints: totalPoints[0]?.total || 0
-          }
-        }
-      });
-    } else {
-      // Get delivery agent dashboard data
-      const completedPickups = await Pickup.countDocuments({ 
-        deliveryAgent: userId, 
-        status: 'completed' 
-      });
-
-      const totalEarnings = await Pickup.aggregate([
-        { $match: { deliveryAgent: userId, status: 'completed' } },
-        { $group: { _id: null, total: { $sum: '$earnings' } } }
-      ]);
-
-      const availablePickups = await Pickup.find({
-        status: 'pending',
-        priority: 'now'
-      }).populate('user', 'name phone').populate('address');
-
-      res.status(200).json({
-        status: 'success',
-        data: {
-          stats: {
-            completedPickups,
-            totalEarnings: totalEarnings[0]?.total || 0,
-            rating: req.user.rating
-          },
-          availablePickups: availablePickups.slice(0, 5) // Show only 5 available pickups
-        }
-      });
-    }
-  } catch (error) {
-    console.error('Dashboard error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Server error while fetching dashboard data'
-    });
-  }
-});
-
-// @route   GET /api/users/history
-// @desc    Get user pickup history
-// @access  Private
-router.get('/history', protect, async (req, res) => {
-  try {
-    const { page = 1, limit = 5 } = req.query;
-    const userId = req.user._id;
-
-    const pickups = await Pickup.find({ user: userId })
-      .sort({ createdAt: -1 })
-      .populate('address')
-      .populate('deliveryAgent', 'name phone vehicleType')
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    const total = await Pickup.countDocuments({ user: userId });
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        pickups,
-        pagination: {
-          current: parseInt(page),
-          pages: Math.ceil(total / limit),
-          total
-        }
-      }
-    });
-  } catch (error) {
-    console.error('History error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Server error while fetching history'
-    });
-  }
-});
-
-// @route   GET /api/users/earnings
-// @desc    Get delivery agent earnings
-// @access  Private
+// Get earnings (for delivery agents)
 router.get('/earnings', protect, restrictTo('delivery'), async (req, res) => {
   try {
-    const userId = req.user._id;
+    const user = await User.findById(req.user._id);
+    
+    // Get completed pickups for this delivery agent
+    const completedPickups = await Pickup.find({
+      deliveryAgent: req.user._id,
+      status: 'completed'
+    }).populate('user address');
 
-    const earnings = await Pickup.aggregate([
-      { $match: { deliveryAgent: userId, status: 'completed' } },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' },
-            day: { $dayOfMonth: '$createdAt' }
-          },
-          totalEarnings: { $sum: '$earnings' },
-          pickups: { $sum: 1 }
-        }
-      },
-      { $sort: { '_id.year': -1, '_id.month': -1, '_id.day': -1 } },
-      { $limit: 30 }
-    ]);
-
-    const totalEarnings = await Pickup.aggregate([
-      { $match: { deliveryAgent: userId, status: 'completed' } },
-      { $group: { _id: null, total: { $sum: '$earnings' } } }
-    ]);
+    // Calculate earnings breakdown
+    const earningsBreakdown = completedPickups.map(pickup => ({
+      pickupId: pickup._id,
+      date: pickup.completedAt || pickup.updatedAt,
+      customerName: pickup.user.name,
+      address: pickup.address.fullAddress,
+      amount: pickup.earnings || 0,
+      distance: pickup.distance || 0
+    }));
 
     res.status(200).json({
       status: 'success',
       data: {
-        earnings,
-        totalEarnings: totalEarnings[0]?.total || 0,
-        availableBalance: req.user.earnings.available
+        totalEarnings: user.earnings.total,
+        availableEarnings: user.earnings.available,
+        withdrawnEarnings: user.earnings.withdrawn,
+        completedPickups: user.completedPickups,
+        earningsBreakdown
       }
     });
   } catch (error) {
-    console.error('Earnings error:', error);
+    console.error('Error fetching earnings:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Server error while fetching earnings'
+      message: 'Failed to fetch earnings'
     });
   }
 });

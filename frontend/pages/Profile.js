@@ -1,115 +1,146 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput } from 'react-native';
-import { userAPI, apiUtils } from '../services/apiService';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+  Image,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import { userAPI, uploadAPI } from '../services/apiService';
+import { authService } from '../services/authService';
 
 export default function Profile({ navigation }) {
-  const [userInfo, setUserInfo] = useState({
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    address: ''
-  });
-  const [historyData, setHistoryData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({
-    name: '',
-    email: '',
-    phone: ''
+    profileImage: null,
   });
 
   useEffect(() => {
     loadUserProfile();
-    loadUserHistory();
   }, []);
 
   const loadUserProfile = async () => {
     try {
-      const response = await userAPI.getProfile();
-      if (response.status === 'success') {
-        const user = response.data.user;
-        setUserInfo({
-          name: user.name || 'User',
-          email: user.email || 'user@example.com',
-          phone: user.phone || '+91 98765 43210',
-          address: user.addresses?.[0]?.fullAddress || 'No address set'
-        });
-        setEditForm({
-          name: user.name || '',
-          email: user.email || '',
-          phone: user.phone || ''
+      setLoading(true);
+      const currentUser = await authService.getCurrentUser();
+      if (currentUser) {
+        setUser(currentUser);
+        setFormData({
+          name: currentUser.name || '',
+          email: currentUser.email || '',
+          phone: currentUser.phone || '',
+          profileImage: currentUser.profileImage || null,
         });
       }
     } catch (error) {
       console.error('Error loading profile:', error);
-      Alert.alert('Error', 'Failed to load profile data');
-    }
-  };
-
-  const loadUserHistory = async () => {
-    try {
-      const response = await userAPI.getHistory(1, 10);
-      if (response.status === 'success') {
-        setHistoryData(response.data.history || []);
-      }
-    } catch (error) {
-      console.error('Error loading history:', error);
-      // Use dummy data as fallback
-      setHistoryData([
-        { id: 1, type: 'Plastic Waste', weight: '2.5kg', date: 'Jan 15, 2024', points: '+150' },
-        { id: 2, type: 'Food Waste', weight: '1.8kg', date: 'Jan 14, 2024', points: '+120' },
-        { id: 3, type: 'Paper Waste', weight: '2.0kg', date: 'Jan 13, 2024', points: '+100' },
-        { id: 4, type: 'Glass Items', weight: '0.8kg', date: 'Jan 12, 2024', points: '+80' },
-        { id: 5, type: 'Mixed Waste', weight: '3.2kg', date: 'Jan 11, 2024', points: '+200' },
-      ]);
+      Alert.alert('Error', 'Failed to load profile');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEdit = () => {
-    setEditing(true);
+  const handleImagePicker = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Camera roll permission is required');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setFormData(prev => ({
+          ...prev,
+          profileImage: result.assets.uri,
+        }));
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to select image');
+    }
   };
 
-  const handleSave = async () => {
-    if (!editForm.name.trim() || !editForm.email.trim() || !editForm.phone.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-
+  const handleSaveProfile = async () => {
     try {
-      const response = await userAPI.updateProfile(editForm);
+      if (!formData.name.trim() || !formData.email.trim() || !formData.phone.trim()) {
+        Alert.alert('Error', 'Please fill all required fields');
+        return;
+      }
+
+      setLoading(true);
+      
+      let profileImageUrl = formData.profileImage;
+      
+      // Upload new profile image if changed
+      if (formData.profileImage && formData.profileImage !== user?.profileImage) {
+        try {
+          const uploadResponse = await uploadAPI.uploadImage(formData.profileImage);
+          if (uploadResponse.status === 'success') {
+            profileImageUrl = uploadResponse.data.imageUrl;
+          }
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError);
+          Alert.alert('Warning', 'Profile updated but image upload failed');
+        }
+      }
+
+      const updateData = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        profileImage: profileImageUrl,
+      };
+
+      const response = await userAPI.updateProfile(updateData);
+      
       if (response.status === 'success') {
-        setUserInfo({
-          ...userInfo,
-          name: editForm.name,
-          email: editForm.email,
-          phone: editForm.phone
-        });
+        setUser(response.data.user);
         setEditing(false);
-        Alert.alert('Success', 'Profile updated successfully!');
+        Alert.alert('Success', 'Profile updated successfully');
+        
+        // Update stored user data
+        await authService.storeAuthData(
+          await AsyncStorage.getItem('authToken'),
+          response.data.user
+        );
       }
     } catch (error) {
       console.error('Error updating profile:', error);
-      const errorMessage = apiUtils.handleError(error);
-      Alert.alert('Error', errorMessage.message);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update profile');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleCancel = () => {
-    setEditForm({
-      name: userInfo.name,
-      email: userInfo.email,
-      phone: userInfo.phone
+    setFormData({
+      name: user?.name || '',
+      email: user?.email || '',
+      phone: user?.phone || '',
+      profileImage: user?.profileImage || null,
     });
     setEditing(false);
   };
 
-  const handleHome = () => {
-    navigation.navigate('Dashboard');
-  };
-
-  const handleLogout = () => {
+  const handleLogout = async () => {
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
@@ -118,390 +149,411 @@ export default function Profile({ navigation }) {
         {
           text: 'Logout',
           style: 'destructive',
-          onPress: () => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'UserProfileSelector' }],
-            });
-          }
-        }
+          onPress: async () => {
+            try {
+              await authService.logout();
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'UserProfileSelector' }],
+              });
+            } catch (error) {
+              console.error('Logout error:', error);
+            }
+          },
+        },
       ]
     );
   };
 
-  const handleViewHistory = (history) => {
-    Alert.alert('History Details', `Type: ${history.type}\nWeight: ${history.weight}\nDate: ${history.date}\nPoints: ${history.points}`);
-  };
-
-  if (loading) {
+  if (loading && !user) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={styles.loadingText}>Loading profile...</Text>
+        <Text>Loading profile...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header with Profile Info */}
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.profileSection}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>👤</Text>
-          </View>
-          <Text style={styles.userName}>{userInfo.name}</Text>
-        </View>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Profile</Text>
+        <TouchableOpacity
+          onPress={editing ? handleSaveProfile : () => setEditing(true)}
+          disabled={loading}
+        >
+          <Text style={[styles.editText, loading && styles.disabledText]}>
+            {editing ? 'Save' : 'Edit'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.content}>
-        {/* User Details Section */}
-        <View style={styles.detailsSection}>
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Name</Text>
-            {editing ? (
-              <TextInput
-                style={styles.editInput}
-                value={editForm.name}
-                onChangeText={(text) => setEditForm({ ...editForm, name: text })}
-                placeholder="Enter your name"
-              />
+      <ScrollView style={styles.content}>
+        {/* Profile Image */}
+        <View style={styles.imageContainer}>
+          <TouchableOpacity
+            style={styles.imageWrapper}
+            onPress={editing ? handleImagePicker : null}
+          >
+            {formData.profileImage ? (
+              <Image source={{ uri: formData.profileImage }} style={styles.profileImage} />
             ) : (
-              <Text style={styles.detailValue}>{userInfo.name}</Text>
+              <View style={styles.placeholderImage}>
+                <Text style={styles.placeholderText}>
+                  {formData.name.charAt(0).toUpperCase()}
+                </Text>
+              </View>
             )}
-          </View>
-
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Email</Text>
-            {editing ? (
-              <TextInput
-                style={styles.editInput}
-                value={editForm.email}
-                onChangeText={(text) => setEditForm({ ...editForm, email: text })}
-                placeholder="Enter your email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            ) : (
-              <Text style={styles.detailValue}>{userInfo.email}</Text>
+            {editing && (
+              <View style={styles.editImageOverlay}>
+                <Text style={styles.editImageText}>📷</Text>
+              </View>
             )}
-          </View>
-
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Phone</Text>
-            {editing ? (
-              <TextInput
-                style={styles.editInput}
-                value={editForm.phone}
-                onChangeText={(text) => setEditForm({ ...editForm, phone: text })}
-                placeholder="Enter your phone number"
-                keyboardType="phone-pad"
-              />
-            ) : (
-              <Text style={styles.detailValue}>{userInfo.phone}</Text>
-            )}
-          </View>
-
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Address</Text>
-            <Text style={styles.detailValue}>{userInfo.address}</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
-        {/* Edit/Save Buttons */}
-        <View style={styles.editButtonsContainer}>
-          {editing ? (
-            <View style={styles.editButtons}>
-              <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                <Text style={styles.saveButtonText}>Save</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+        {/* Form Fields */}
+        <View style={styles.formContainer}>
+          {/* Name */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Full Name</Text>
+            <TextInput
+              style={[styles.input, !editing && styles.disabledInput]}
+              value={formData.name}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
+              editable={editing}
+              placeholder="Enter your full name"
+            />
+          </View>
+
+          {/* Email */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={[styles.input, styles.disabledInput]} // Email should not be editable
+              value={formData.email}
+              editable={false}
+              placeholder="Enter your email"
+            />
+            <Text style={styles.helpText}>Email cannot be changed</Text>
+          </View>
+
+          {/* Phone */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Phone Number</Text>
+            <TextInput
+              style={[styles.input, !editing && styles.disabledInput]}
+              value={formData.phone}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
+              editable={editing}
+              placeholder="Enter your phone number"
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          {/* User Stats */}
+          {user && (
+            <View style={styles.statsContainer}>
+              <Text style={styles.statsTitle}>Your Stats</Text>
+              
+              <View style={styles.statRow}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{user.totalPoints || 0}</Text>
+                  <Text style={styles.statLabel}>Points Earned</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{user.totalPickups || 0}</Text>
+                  <Text style={styles.statLabel}>Total Pickups</Text>
+                </View>
+              </View>
+              
+              {user.role === 'delivery' && (
+                <View style={styles.statRow}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>₹{user.earnings?.total || 0}</Text>
+                    <Text style={styles.statLabel}>Total Earnings</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>
+                      {user.rating?.average ? user.rating.average.toFixed(1) : 'N/A'}
+                    </Text>
+                    <Text style={styles.statLabel}>Rating</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Action Buttons */}
+          {editing && (
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[styles.button, styles.cancelButton]}
+                onPress={handleCancel}
+              >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.button, styles.saveButton]}
+                onPress={handleSaveProfile}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                )}
+              </TouchableOpacity>
             </View>
-          ) : (
-            <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
-              <Text style={styles.editButtonText}>Edit Profile</Text>
-            </TouchableOpacity>
+          )}
+
+          {/* Menu Options */}
+          {!editing && (
+            <View style={styles.menuContainer}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => navigation.navigate('AddressManagement')}
+              >
+                <Text style={styles.menuText}>📍 Manage Addresses</Text>
+                <Text style={styles.menuArrow}>→</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => navigation.navigate('Support')}
+              >
+                <Text style={styles.menuText}>💬 Support</Text>
+                <Text style={styles.menuArrow}>→</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.menuItem, styles.logoutItem]}
+                onPress={handleLogout}
+              >
+                <Text style={[styles.menuText, styles.logoutText]}>🚪 Logout</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
-
-        {/* History Section */}
-        <View style={styles.historySection}>
-          <Text style={styles.historyTitle}>Recent Activity</Text>
-          <View style={styles.historyContainer}>
-            {historyData.length === 0 ? (
-              <View style={styles.emptyHistory}>
-                <Text style={styles.emptyHistoryText}>No activity yet</Text>
-                <Text style={styles.emptyHistorySubtext}>Start recycling to see your history here</Text>
-              </View>
-            ) : (
-              historyData.map((history) => (
-                <TouchableOpacity
-                  key={history.id}
-                  style={styles.historyItem}
-                  onPress={() => handleViewHistory(history)}
-                >
-                  <View style={styles.historyInfo}>
-                    <Text style={styles.historyType}>{history.type}</Text>
-                    <Text style={styles.historyWeight}>{history.weight}</Text>
-                    <Text style={styles.historyDate}>{history.date}</Text>
-                  </View>
-                  <Text style={styles.historyPoints}>{history.points}</Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
-        </View>
-      </View>
-
-      {/* Navigation Buttons */}
-      <View style={styles.navigationButtons}>
-        <TouchableOpacity style={styles.navButton} onPress={handleHome}>
-          <Text style={styles.navButtonText}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navButton, styles.logoutButton]} onPress={handleLogout}>
-          <Text style={[styles.navButtonText, styles.logoutButtonText]}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F8E9',
+    backgroundColor: '#f5f5f5',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F1F8E9',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  profileSection: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#E8F5E9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+  backText: {
+    fontSize: 16,
+    color: '#4CAF50',
   },
-  avatarText: {
-    fontSize: 36,
-    color: '#2E7D32',
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
   },
-  userName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1B5E20',
+  editText: {
+    fontSize: 16,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  disabledText: {
+    color: '#ccc',
   },
   content: {
     flex: 1,
-    padding: 20,
   },
-  detailsSection: {
+  imageContainer: {
+    alignItems: 'center',
+    paddingVertical: 30,
     backgroundColor: '#fff',
-    borderRadius: 12,
+  },
+  imageWrapper: {
+    position: 'relative',
+  },
+  profileImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  placeholderImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholderText: {
+    color: '#fff',
+    fontSize: 48,
+    fontWeight: '600',
+  },
+  editImageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#4CAF50',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  editImageText: {
+    fontSize: 16,
+    color: '#fff',
+  },
+  formContainer: {
     padding: 20,
+  },
+  inputGroup: {
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  detailItem: {
-    marginBottom: 16,
-  },
-  detailLabel: {
+  label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1B5E20',
-    marginBottom: 4,
+    color: '#333',
+    marginBottom: 8,
   },
-  detailValue: {
+  input: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  disabledInput: {
+    backgroundColor: '#f5f5f5',
     color: '#666',
   },
-  editInput: {
-    borderWidth: 1,
-    borderColor: '#C8E6C9',
+  helpText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 5,
+  },
+  statsContainer: {
+    backgroundColor: '#fff',
+    padding: 20,
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 16,
-    backgroundColor: '#F8F9FA',
-  },
-  editButtonsContainer: {
     marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  editButtons: {
+  statsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 15,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#4CAF50',
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 5,
+  },
+  actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 30,
   },
-  editButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+  button: {
+    flex: 1,
+    paddingVertical: 15,
     borderRadius: 8,
-    alignSelf: 'flex-start',
+    alignItems: 'center',
+    marginHorizontal: 5,
   },
-  editButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  cancelButton: {
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   saveButton: {
     backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    flex: 1,
-    marginRight: 8,
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
   },
   saveButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-    textAlign: 'center',
   },
-  cancelButton: {
-    backgroundColor: '#E8F5E9',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+  menuContainer: {
+    backgroundColor: '#fff',
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#4CAF50',
-    flex: 1,
-    marginLeft: 8,
-  },
-  cancelButtonText: {
-    color: '#4CAF50',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  historySection: {
-    flex: 1,
-  },
-  historyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1B5E20',
-    marginBottom: 12,
-  },
-  historyContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 2,
   },
-  historyItem: {
+  menuItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 15,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#f0f0f0',
   },
-  historyInfo: {
-    flex: 1,
+  logoutItem: {
+    borderBottomWidth: 0,
   },
-  historyType: {
+  menuText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1B5E20',
-    marginBottom: 2,
+    color: '#333',
   },
-  historyWeight: {
-    fontSize: 14,
+  logoutText: {
+    color: '#f44336',
+  },
+  menuArrow: {
+    fontSize: 18,
     color: '#666',
-    marginBottom: 2,
-  },
-  historyDate: {
-    fontSize: 14,
-    color: '#666',
-  },
-  historyPoints: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#4CAF50',
-  },
-  emptyHistory: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyHistoryText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 8,
-  },
-  emptyHistorySubtext: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-  },
-  navigationButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 20,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  navButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-    flex: 1,
-    marginHorizontal: 8,
-    alignItems: 'center',
-  },
-  navButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  logoutButton: {
-    backgroundColor: '#F44336',
-  },
-  logoutButtonText: {
-    color: '#fff',
   },
 });

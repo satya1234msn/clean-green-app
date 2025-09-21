@@ -1,547 +1,849 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert, TextInput } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Alert,
+  ActivityIndicator,
+  TextInput,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { pickupAPI, uploadAPI } from '../services/apiService';
+import { uploadAPI, pickupAPI, addressAPI } from '../services/apiService';
 import { authService } from '../services/authService';
 
 export default function WasteUploadNew({ navigation }) {
-  const [selectedWasteType, setSelectedWasteType] = useState('');
-  const [foodBoxes, setFoodBoxes] = useState('');
-  const [bottles, setBottles] = useState('');
-  const [otherItems, setOtherItems] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddress, setSelectedAddress] = useState(null);
+  const [images, setImages] = useState([]);
   const [uploadedImages, setUploadedImages] = useState([]);
+  
+  // Form state
+  const [wasteType, setWasteType] = useState('');
+  const [wasteDetails, setWasteDetails] = useState({
+    foodBoxes: 0,
+    bottles: 0,
+    otherItems: '',
+  });
+  const [estimatedWeight, setEstimatedWeight] = useState('');
+  const [priority, setPriority] = useState('now');
+  const [scheduledDate, setScheduledDate] = useState(new Date());
+  const [scheduledTime, setScheduledTime] = useState('');
 
-  const wasteTypes = [
-    { id: 'food', label: 'Food', icon: '📦' },
-    { id: 'bottles', label: 'Bottles', icon: '🍼' },
-    { id: 'other', label: 'Other', icon: '🗑️' },
-  ];
+  useEffect(() => {
+    initializeData();
+  }, []);
 
-  const handleWasteTypeSelect = (type) => {
-    setSelectedWasteType(type);
-  };
-
-  const handleImageUpload = () => {
-    Alert.alert(
-      'Select Photo',
-      'Choose how you want to add a photo',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Gallery', onPress: handleGalleryUpload },
-        { text: 'Camera', onPress: handleCameraCapture },
-      ]
-    );
-  };
-
-  const handleGalleryUpload = async () => {
+  const initializeData = async () => {
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      setLoading(true);
       
-      if (permissionResult.granted === false) {
-        Alert.alert('Permission required', 'Permission to access camera roll is required!');
+      // Get current user
+      const user = await authService.getCurrentUser();
+      setCurrentUser(user);
+      
+      // Load user's addresses
+      await loadAddresses();
+      
+    } catch (error) {
+      console.error('Error initializing data:', error);
+      Alert.alert('Error', 'Failed to load user data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAddresses = async () => {
+    try {
+      const response = await addressAPI.getAddresses();
+      if (response.status === 'success') {
+        setAddresses(response.data);
+        
+        // Auto-select default address
+        const defaultAddress = response.data.find(addr => addr.isDefault);
+        if (defaultAddress) {
+          setSelectedAddress(defaultAddress);
+        } else if (response.data.length > 0) {
+          setSelectedAddress(response.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading addresses:', error);
+      Alert.alert('Error', 'Failed to load addresses');
+    }
+  };
+
+  const handleImagePicker = async () => {
+    try {
+      if (images.length >= 5) {
+        Alert.alert('Limit Reached', 'You can upload maximum 5 images');
+        return;
+      }
+
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Camera roll permission is required');
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'images',
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [1, 1],
+        aspect: [4, 3],
         quality: 0.8,
         allowsMultipleSelection: false,
       });
 
-      if (!result.canceled && result.assets && result.assets.length > 0 && uploadedImages.length < 3) {
-        setUploadedImages([...uploadedImages, result.assets[0].uri]);
-        Alert.alert('Success', 'Photo uploaded successfully!');
-      } else if (uploadedImages.length >= 3) {
-        Alert.alert('Limit Reached', 'You can only upload up to 3 photos');
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const newImage = result.assets;
+        setImages(prev => [...prev, newImage]);
+        
+        // Upload image immediately
+        await uploadSingleImage(newImage);
       }
     } catch (error) {
-      console.error('Error uploading image:', error);
-      Alert.alert('Error', 'Failed to upload image. Please try again.');
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to select image');
     }
   };
 
-  const handleCameraCapture = async () => {
+  const uploadSingleImage = async (image) => {
     try {
-      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      setUploadingImages(true);
       
-      if (permissionResult.granted === false) {
-        Alert.alert('Permission required', 'Permission to access camera is required!');
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0 && uploadedImages.length < 3) {
-        setUploadedImages([...uploadedImages, result.assets[0].uri]);
-        Alert.alert('Success', 'Photo captured successfully!');
-      } else if (uploadedImages.length >= 3) {
-        Alert.alert('Limit Reached', 'You can only upload up to 3 photos');
+      console.log('Uploading image:', image.uri);
+      const response = await uploadAPI.uploadImage(image.uri);
+      
+      if (response.status === 'success') {
+        setUploadedImages(prev => [...prev, response.data.imageUrl]);
+        console.log('Image uploaded successfully:', response.data.imageUrl);
+      } else {
+        throw new Error(response.message || 'Upload failed');
       }
     } catch (error) {
-      console.error('Error capturing image:', error);
-      Alert.alert('Error', 'Failed to capture image. Please try again.');
+      console.error('Error uploading image:', error);
+      Alert.alert('Upload Error', 
+        error.userMessage || 
+        error.response?.data?.message || 
+        'Failed to upload image. Please check your connection and try again.'
+      );
+      
+      // Remove the failed image from local state
+      setImages(prev => prev.filter(img => img.uri !== image.uri));
+    } finally {
+      setUploadingImages(false);
     }
   };
 
   const handleRemoveImage = (index) => {
-    const newImages = uploadedImages.filter((_, i) => i !== index);
-    setUploadedImages(newImages);
+    Alert.alert(
+      'Remove Image',
+      'Are you sure you want to remove this image?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setImages(prev => prev.filter((_, i) => i !== index));
+            setUploadedImages(prev => prev.filter((_, i) => i !== index));
+          },
+        },
+      ]
+    );
   };
 
-  const handleSchedulePickup = async () => {
-    if (!selectedWasteType) {
-      Alert.alert('Selection Required', 'Please select a waste type');
-      return;
-    }
-
+  const handleSubmit = async () => {
     try {
-      // Upload images first
-      const uploadedImageUrls = [];
-      for (const image of uploadedImages) {
-        const uploadResult = await uploadAPI.uploadImage(image.uri);
-        if (uploadResult.status === 'success') {
-          uploadedImageUrls.push(uploadResult.data.url);
-        }
-      }
-
-      // Get current user and address
-      const currentUser = await authService.getCurrentUser();
-      if (!currentUser?.defaultAddress) {
-        Alert.alert('Address Required', 'Please set a default address in your profile');
+      // Validation
+      if (!selectedAddress) {
+        Alert.alert('Error', 'Please select a pickup address');
         return;
       }
+
+      if (!wasteType) {
+        Alert.alert('Error', 'Please select waste type');
+        return;
+      }
+
+      if (uploadedImages.length === 0) {
+        Alert.alert('Error', 'Please add at least one image');
+        return;
+      }
+
+      if (priority === 'scheduled' && (!scheduledDate || !scheduledTime)) {
+        Alert.alert('Error', 'Please select schedule date and time');
+        return;
+      }
+
+      setLoading(true);
 
       // Create pickup request
       const pickupData = {
-        wasteType: selectedWasteType,
-        wasteDetails: {
-          foodBoxes: selectedWasteType === 'food' ? parseInt(foodBoxes) || 0 : 0,
-          bottles: selectedWasteType === 'bottles' ? parseInt(bottles) || 0 : 0,
-          otherItems: selectedWasteType === 'other' ? otherItems : '',
-        },
-        images: uploadedImageUrls,
-        address: currentUser.defaultAddress._id,
-        priority: 'scheduled',
-        scheduledDate: new Date(), // Will be updated in SchedulePickupPage
+        addressId: selectedAddress._id,
+        wasteType,
+        wasteDetails,
+        images: uploadedImages,
+        priority,
+        scheduledDate: priority === 'scheduled' ? scheduledDate.toISOString() : null,
+        scheduledTime: priority === 'scheduled' ? scheduledTime : null,
+        estimatedWeight: parseFloat(estimatedWeight) || 1,
       };
 
-      navigation.navigate('SchedulePickupPage', {
-        pickupData,
-      });
-    } catch (error) {
-      console.error('Error preparing pickup request:', error);
-      Alert.alert('Error', 'Failed to prepare pickup request');
-    }
-  };
-
-  const handlePickupNow = async () => {
-    if (!selectedWasteType) {
-      Alert.alert('Selection Required', 'Please select a waste type');
-      return;
-    }
-
-    try {
-      // Upload images first
-      const uploadedImageUrls = [];
-      for (const image of uploadedImages) {
-        const uploadResult = await uploadAPI.uploadImage(image.uri);
-        if (uploadResult.status === 'success') {
-          uploadedImageUrls.push(uploadResult.data.url);
-        }
-      }
-
-      // Get current user and address
-      const currentUser = await authService.getCurrentUser();
-      if (!currentUser?.defaultAddress) {
-        Alert.alert('Address Required', 'Please set a default address in your profile');
-        return;
-      }
-
-      // Create immediate pickup request
-      const pickupData = {
-        wasteType: selectedWasteType,
-        wasteDetails: {
-          foodBoxes: selectedWasteType === 'food' ? parseInt(foodBoxes) || 0 : 0,
-          bottles: selectedWasteType === 'bottles' ? parseInt(bottles) || 0 : 0,
-          otherItems: selectedWasteType === 'other' ? otherItems : '',
-        },
-        images: uploadedImageUrls,
-        address: currentUser.defaultAddress._id,
-        priority: 'now',
-      };
-
-      // Submit pickup request to backend
+      console.log('Creating pickup with data:', pickupData);
       const response = await pickupAPI.createPickup(pickupData);
-      
+
       if (response.status === 'success') {
-        navigation.navigate('AfterScheduling', {
-          pickupData: response.data.pickup,
-          immediatePickup: true,
-        });
+        Alert.alert(
+          'Success!',
+          'Your pickup request has been submitted successfully',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'TabNavigator', params: { screen: 'Dashboard' } }],
+                });
+              },
+            },
+          ]
+        );
       } else {
-        Alert.alert('Error', response.message || 'Failed to create pickup request');
+        throw new Error(response.message || 'Failed to create pickup');
       }
     } catch (error) {
       console.error('Error creating pickup request:', error);
-      Alert.alert('Error', 'Failed to create pickup request');
+      Alert.alert(
+        'Error',
+        error.userMessage || 
+        error.response?.data?.message || 
+        'Failed to create pickup request. Please try again.'
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleProfile = () => {
-    navigation.navigate('Profile');
-  };
+  const wasteTypes = [
+    { id: 'food', name: 'Food Waste', icon: '🍽️', description: 'Food containers, leftovers' },
+    { id: 'bottles', name: 'Bottles', icon: '🍶', description: 'Plastic bottles, glass bottles' },
+    { id: 'mixed', name: 'Mixed Waste', icon: '♻️', description: 'Multiple types of waste' },
+    { id: 'other', name: 'Other', icon: '📦', description: 'Other recyclable items' },
+  ];
+
+  if (loading && !currentUser) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-          {/* Header */}
-              <View style={styles.header}>
-                <TouchableOpacity style={styles.profileIcon} onPress={handleProfile}>
-                  <Text style={styles.profileIconText}>👤</Text>
-                </TouchableOpacity>
-                <View style={styles.headerTitle}>
-                  <Text style={styles.headerTitleText}>user waste upload</Text>
-                </View>
-              </View>
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Upload Waste</Text>
+        <View style={styles.placeholder} />
+      </View>
 
-      <View style={styles.content}>
-        {/* Main Heading */}
-        <View style={styles.headingContainer}>
-          <Text style={styles.mainHeading}>DUMP with us!</Text>
-          <Text style={styles.subHeading}>want to dump with us then:</Text>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Address Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Pickup Address</Text>
+          
+          {addresses.length === 0 ? (
+            <TouchableOpacity
+              style={styles.addAddressButton}
+              onPress={() => navigation.navigate('AddressManagement')}
+            >
+              <Text style={styles.addAddressText}>+ Add Pickup Address</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              {selectedAddress && (
+                <View style={styles.selectedAddress}>
+                  <View style={styles.addressInfo}>
+                    <Text style={styles.addressLabel}>{selectedAddress.label}</Text>
+                    <Text style={styles.addressText}>{selectedAddress.fullAddress}</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      // Show address selection modal or navigate to address management
+                      Alert.alert(
+                        'Select Address',
+                        'Choose pickup address:',
+                        [
+                          ...addresses.map(addr => ({
+                            text: `${addr.label} - ${addr.houseFlatBlock}`,
+                            onPress: () => setSelectedAddress(addr),
+                          })),
+                          {
+                            text: 'Add New Address',
+                            onPress: () => navigation.navigate('AddressManagement'),
+                          },
+                          { text: 'Cancel', style: 'cancel' },
+                        ]
+                      );
+                    }}
+                  >
+                    <Text style={styles.changeText}>Change</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
+          )}
         </View>
 
         {/* Waste Type Selection */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select type of waste</Text>
-          <View style={styles.wasteTypeContainer}>
+          <Text style={styles.sectionTitle}>Waste Type</Text>
+          <View style={styles.wasteTypes}>
             {wasteTypes.map((type) => (
               <TouchableOpacity
                 key={type.id}
                 style={[
-                  styles.wasteTypeButton,
-                  selectedWasteType === type.id && styles.selectedWasteType
+                  styles.wasteTypeCard,
+                  wasteType === type.id && styles.selectedWasteType,
                 ]}
-                onPress={() => handleWasteTypeSelect(type.id)}
+                onPress={() => setWasteType(type.id)}
               >
                 <Text style={styles.wasteTypeIcon}>{type.icon}</Text>
-                <Text style={[
-                  styles.wasteTypeText,
-                  selectedWasteType === type.id && styles.selectedWasteTypeText
-                ]}>
-                  {type.label}
-                </Text>
+                <Text style={styles.wasteTypeName}>{type.name}</Text>
+                <Text style={styles.wasteTypeDesc}>{type.description}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        {/* Input Fields */}
-        <View style={styles.section}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Number of food boxes</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Enter"
-              value={foodBoxes}
-              onChangeText={setFoodBoxes}
-              keyboardType="numeric"
-            />
+        {/* Waste Details */}
+        {wasteType && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Waste Details</Text>
+            
+            {(wasteType === 'food' || wasteType === 'mixed') && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Number of Food Containers</Text>
+                <TextInput
+                  style={styles.input}
+                  value={wasteDetails.foodBoxes.toString()}
+                  onChangeText={(text) =>
+                    setWasteDetails(prev => ({ ...prev, foodBoxes: parseInt(text) || 0 }))
+                  }
+                  keyboardType="numeric"
+                  placeholder="0"
+                />
+              </View>
+            )}
+            
+            {(wasteType === 'bottles' || wasteType === 'mixed') && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Number of Bottles</Text>
+                <TextInput
+                  style={styles.input}
+                  value={wasteDetails.bottles.toString()}
+                  onChangeText={(text) =>
+                    setWasteDetails(prev => ({ ...prev, bottles: parseInt(text) || 0 }))
+                  }
+                  keyboardType="numeric"
+                  placeholder="0"
+                />
+              </View>
+            )}
+            
+            {(wasteType === 'other' || wasteType === 'mixed') && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Other Items Description</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={wasteDetails.otherItems}
+                  onChangeText={(text) =>
+                    setWasteDetails(prev => ({ ...prev, otherItems: text }))
+                  }
+                  placeholder="Describe other waste items..."
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            )}
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Estimated Weight (kg)</Text>
+              <TextInput
+                style={styles.input}
+                value={estimatedWeight}
+                onChangeText={setEstimatedWeight}
+                keyboardType="decimal-pad"
+                placeholder="1.0"
+              />
+            </View>
           </View>
-          
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Number of bottles</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Enter"
-              value={bottles}
-              onChangeText={setBottles}
-              keyboardType="numeric"
-            />
-          </View>
-          
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Describe other items</Text>
-            <TextInput
-              style={[styles.textInput, styles.multilineInput]}
-              placeholder="Enter description"
-              value={otherItems}
-              onChangeText={setOtherItems}
-              multiline
-              numberOfLines={3}
-            />
-          </View>
-        </View>
+        )}
 
-        {/* Photo Upload */}
+        {/* Image Upload */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Upload Photo</Text>
-          <View style={styles.photoContainer}>
-            {uploadedImages.map((uri, index) => (
-              <View key={index} style={styles.imageContainer}>
-                <Image source={{ uri }} style={styles.uploadedImage} />
-                <TouchableOpacity 
-                  style={styles.removeButton} 
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Photos ({images.length}/5)</Text>
+            {uploadingImages && <ActivityIndicator size="small" color="#4CAF50" />}
+          </View>
+          
+          <View style={styles.imageContainer}>
+            {images.map((image, index) => (
+              <View key={index} style={styles.imageWrapper}>
+                <Image source={{ uri: image.uri }} style={styles.uploadedImage} />
+                <TouchableOpacity
+                  style={styles.removeImageButton}
                   onPress={() => handleRemoveImage(index)}
                 >
-                  <Text style={styles.removeButtonText}>✕</Text>
+                  <Text style={styles.removeImageText}>✕</Text>
                 </TouchableOpacity>
               </View>
             ))}
-            {uploadedImages.length < 3 && (
-              <TouchableOpacity style={styles.uploadButton} onPress={handleImageUpload}>
-                <Text style={styles.uploadButtonText}>+</Text>
+            
+            {images.length < 5 && (
+              <TouchableOpacity
+                style={styles.addImageButton}
+                onPress={handleImagePicker}
+                disabled={uploadingImages}
+              >
+                <Text style={styles.addImageText}>
+                  {uploadingImages ? '⏳' : '📷'}
+                </Text>
+                <Text style={styles.addImageLabel}>
+                  {uploadingImages ? 'Uploading...' : 'Add Photo'}
+                </Text>
               </TouchableOpacity>
             )}
           </View>
-        </View>
-
-        {/* Action Buttons */}
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.scheduleButton]}
-            onPress={handleSchedulePickup}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.actionButtonText}>Schedule Pickup</Text>
-          </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.pickupNowButton]}
-            onPress={handlePickupNow}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.actionButtonText}>Pickup Now</Text>
-          </TouchableOpacity>
+          <Text style={styles.imageHint}>
+            Add clear photos of your waste items. This helps our team process your request faster.
+          </Text>
         </View>
 
-        {/* Rewards Info */}
-        <Text style={styles.rewardsText}>Your rewards will appear after scheduling.</Text>
-      </View>
-    </ScrollView>
+        {/* Pickup Priority */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Pickup Time</Text>
+          <View style={styles.priorityOptions}>
+            <TouchableOpacity
+              style={[
+                styles.priorityOption,
+                priority === 'now' && styles.selectedPriority,
+              ]}
+              onPress={() => setPriority('now')}
+            >
+              <Text style={[
+                styles.priorityText,
+                priority === 'now' && styles.selectedPriorityText,
+              ]}>
+                🚀 Pickup Now
+              </Text>
+              <Text style={styles.priorityDesc}>Get pickup within 2-4 hours</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.priorityOption,
+                priority === 'scheduled' && styles.selectedPriority,
+              ]}
+              onPress={() => setPriority('scheduled')}
+            >
+              <Text style={[
+                styles.priorityText,
+                priority === 'scheduled' && styles.selectedPriorityText,
+              ]}>
+                📅 Schedule Later
+              </Text>
+              <Text style={styles.priorityDesc}>Choose specific date & time</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {priority === 'scheduled' && (
+            <View style={styles.scheduleInputs}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Date</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => {
+                    // Date picker implementation
+                    Alert.alert('Date Picker', 'Date picker will be implemented');
+                  }}
+                >
+                  <Text style={styles.dateText}>
+                    {scheduledDate.toDateString()}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Time Slot</Text>
+                <View style={styles.timeSlots}>
+                  {['9:00-12:00', '12:00-15:00', '15:00-18:00'].map((slot) => (
+                    <TouchableOpacity
+                      key={slot}
+                      style={[
+                        styles.timeSlot,
+                        scheduledTime === slot && styles.selectedTimeSlot,
+                      ]}
+                      onPress={() => setScheduledTime(slot)}
+                    >
+                      <Text style={[
+                        styles.timeSlotText,
+                        scheduledTime === slot && styles.selectedTimeSlotText,
+                      ]}>
+                        {slot}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Submit Button */}
+        <TouchableOpacity
+          style={[styles.submitButton, loading && styles.disabledButton]}
+          onPress={handleSubmit}
+          disabled={loading || uploadingImages || !wasteType || uploadedImages.length === 0}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitText}>Submit Pickup Request</Text>
+          )}
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F8E9', // Very light green background
+    backgroundColor: '#f5f5f5',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  profileIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#E8F5E9',
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  profileIconText: {
-    fontSize: 24,
-    color: '#2E7D32',
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  backText: {
+    fontSize: 16,
+    color: '#4CAF50',
   },
   headerTitle: {
-    flex: 1,
-    alignItems: 'center',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
   },
-  headerTitleText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1B5E20',
+  placeholder: {
+    width: 50,
   },
   content: {
     flex: 1,
     padding: 20,
   },
-  headingContainer: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  mainHeading: {
-    fontSize: 36,
-    fontWeight: '900',
-    color: '#1B5E20',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subHeading: {
-    fontSize: 18,
-    color: '#666',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
   section: {
-    marginBottom: 24,
+    marginBottom: 25,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 15,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1B5E20',
-    marginBottom: 12,
-  },
-  wasteTypeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  wasteTypeButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 12,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  selectedWasteType: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#2E7D32',
-  },
-  wasteTypeIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  wasteTypeText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
-  selectedWasteTypeText: {
-    color: '#fff',
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  inputLabel: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1B5E20',
-    marginBottom: 8,
+    color: '#333',
+    marginBottom: 15,
   },
-  textInput: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#A5D6A7',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+  
+  // Address styles
+  addAddressButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  addAddressText: {
+    color: '#fff',
     fontSize: 16,
-    color: '#1B5E20',
+    fontWeight: '600',
+  },
+  selectedAddress: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    elevation: 1,
   },
-  multilineInput: {
+  addressInfo: {
+    flex: 1,
+  },
+  addressLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  addressText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  changeText: {
+    color: '#4CAF50',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  // Waste type styles
+  wasteTypes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  wasteTypeCard: {
+    backgroundColor: '#fff',
+    width: '48%',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+  },
+  selectedWasteType: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#f8fff8',
+  },
+  wasteTypeIcon: {
+    fontSize: 30,
+    marginBottom: 8,
+  },
+  wasteTypeName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  wasteTypeDesc: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+  },
+  
+  // Input styles
+  inputGroup: {
+    marginBottom: 15,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 14,
+  },
+  textArea: {
     height: 80,
     textAlignVertical: 'top',
   },
-  photoContainer: {
+  
+  // Image styles
+  imageContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    marginBottom: 10,
+  },
+  imageWrapper: {
+    position: 'relative',
+    marginRight: 10,
+    marginBottom: 10,
   },
   uploadedImage: {
     width: 80,
     height: 80,
-    borderRadius: 12,
-    backgroundColor: '#E0E0E0',
+    borderRadius: 8,
   },
-  imageContainer: {
-    position: 'relative',
-    marginRight: 8,
-  },
-  removeButton: {
+  removeImageButton: {
     position: 'absolute',
-    top: -5,
-    right: -5,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#F44336',
+    top: -8,
+    right: -8,
+    backgroundColor: '#f44336',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  removeButtonText: {
+  removeImageText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 'bold',
   },
-  uploadButton: {
+  addImageButton: {
     width: 80,
     height: 80,
-    borderRadius: 12,
-    backgroundColor: '#C8E6C9',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: '#ddd',
     borderStyle: 'dashed',
   },
-  uploadButtonText: {
-    fontSize: 32,
-    color: '#4CAF50',
-    fontWeight: '600',
+  addImageText: {
+    fontSize: 24,
+    marginBottom: 4,
   },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-    gap: 16,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  scheduleButton: {
-    backgroundColor: '#4CAF50',
-  },
-  pickupNowButton: {
-    backgroundColor: '#2E7D32',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  rewardsText: {
-    fontSize: 16,
+  addImageLabel: {
+    fontSize: 10,
     color: '#666',
     textAlign: 'center',
+  },
+  imageHint: {
+    fontSize: 12,
+    color: '#666',
     fontStyle: 'italic',
+  },
+  
+  // Priority styles
+  priorityOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  priorityOption: {
+    backgroundColor: '#fff',
+    width: '48%',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+  },
+  selectedPriority: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#f8fff8',
+  },
+  priorityText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  selectedPriorityText: {
+    color: '#4CAF50',
+  },
+  priorityDesc: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+  },
+  
+  // Schedule styles
+  scheduleInputs: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 8,
     marginTop: 10,
+  },
+  dateButton: {
+    backgroundColor: '#f5f5f5',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  dateText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  timeSlots: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  timeSlot: {
+    backgroundColor: '#f5f5f5',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    flex: 1,
+    marginHorizontal: 2,
+  },
+  selectedTimeSlot: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  timeSlotText: {
+    fontSize: 12,
+    color: '#333',
+    textAlign: 'center',
+  },
+  selectedTimeSlotText: {
+    color: '#fff',
+  },
+  
+  // Submit button styles
+  submitButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 30,
+  },
+  disabledButton: {
+    backgroundColor: '#ccc',
+  },
+  submitText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

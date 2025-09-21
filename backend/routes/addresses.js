@@ -1,142 +1,104 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
 const Address = require('../models/Address');
+const User = require('../models/User');
 const { protect, restrictTo } = require('../middleware/auth');
 const axios = require('axios');
 
 const router = express.Router();
 
-// @route   GET /api/addresses
-// @desc    Get user addresses
-// @access  Private
-router.get('/', protect, restrictTo('user'), async (req, res) => {
+// Get user's addresses
+router.get('/', protect, async (req, res) => {
   try {
-    const addresses = await Address.find({ 
-      user: req.user._id, 
-      isActive: true 
-    }).sort({ isDefault: -1, createdAt: -1 });
-
+    const addresses = await Address.find({ user: req.user._id }).sort({ isDefault: -1, createdAt: -1 });
+    
     res.status(200).json({
       status: 'success',
-      data: {
-        addresses
-      }
+      data: addresses
     });
   } catch (error) {
-    console.error('Get addresses error:', error);
+    console.error('Error fetching addresses:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Server error while fetching addresses'
+      message: 'Failed to fetch addresses'
     });
   }
 });
 
-// @route   POST /api/addresses
-// @desc    Create a new address
-// @access  Private
-router.post('/', [
-  body('name').trim().isLength({ min: 2, max: 50 }).withMessage('Address name must be between 2 and 50 characters'),
-  body('houseFlatBlock').trim().notEmpty().withMessage('House/Flat/Block number is required'),
-  body('apartmentRoadArea').trim().notEmpty().withMessage('Apartment/Road/Area is required'),
-  body('city').trim().notEmpty().withMessage('City is required'),
-  body('state').trim().notEmpty().withMessage('State is required'),
-  body('pincode').matches(/^\d{6}$/).withMessage('Pincode must be 6 digits'),
-  body('coordinates.latitude').isFloat({ min: -90, max: 90 }).withMessage('Valid latitude is required'),
-  body('coordinates.longitude').isFloat({ min: -180, max: 180 }).withMessage('Valid longitude is required')
-], protect, restrictTo('user'), async (req, res) => {
+// Create new address for current user
+router.post('/', protect, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
+    const {
+      label,
+      houseFlatBlock,
+      apartmentRoadArea,
+      landmark,
+      city,
+      state,
+      pincode,
+      latitude,
+      longitude,
+      isDefault
+    } = req.body;
+
+    // Validation
+    if (!label || !houseFlatBlock || !apartmentRoadArea || !city || !state || !pincode) {
       return res.status(400).json({
         status: 'error',
-        message: 'Validation failed',
-        errors: errors.array()
+        message: 'All required fields must be provided'
       });
     }
 
-    const {
-      name,
-      houseFlatBlock,
-      apartmentRoadArea,
-      city,
-      state,
-      pincode,
-      coordinates
-    } = req.body;
-
-    // Create full address string
-    const fullAddress = `${houseFlatBlock}, ${apartmentRoadArea}, ${city}, ${state} ${pincode}`;
-
-    const addressData = {
-      user: req.user._id,
-      name,
-      houseFlatBlock,
-      apartmentRoadArea,
-      city,
-      state,
-      pincode,
-      fullAddress,
-      coordinates
-    };
-
-    // Check if this is the first address (make it default)
-    const existingAddresses = await Address.countDocuments({ 
-      user: req.user._id, 
-      isActive: true 
-    });
-    
-    if (existingAddresses === 0) {
-      addressData.isDefault = true;
+    // If this is set as default, update all other addresses to not be default
+    if (isDefault) {
+      await Address.updateMany(
+        { user: req.user._id },
+        { isDefault: false }
+      );
     }
 
-    const address = new Address(addressData);
+    // Create new address
+    const address = new Address({
+      user: req.user._id,
+      label,
+      houseFlatBlock,
+      apartmentRoadArea,
+      landmark,
+      city,
+      state,
+      pincode,
+      latitude: latitude || 0,
+      longitude: longitude || 0,
+      isDefault: isDefault || false,
+      fullAddress: `${houseFlatBlock}, ${apartmentRoadArea}, ${city}, ${state} - ${pincode}`
+    });
+
     await address.save();
+
+    // Update user's addresses array and default address
+    await User.findByIdAndUpdate(req.user._id, {
+      $addToSet: { addresses: address._id },
+      ...(isDefault && { defaultAddress: address._id })
+    });
 
     res.status(201).json({
       status: 'success',
       message: 'Address created successfully',
-      data: {
-        address
-      }
+      data: address
     });
   } catch (error) {
-    console.error('Create address error:', error);
+    console.error('Error creating address:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Server error while creating address'
+      message: 'Failed to create address'
     });
   }
 });
 
-// @route   PUT /api/addresses/:id
-// @desc    Update an address
-// @access  Private
-router.put('/:id', [
-  body('name').optional().trim().isLength({ min: 2, max: 50 }),
-  body('houseFlatBlock').optional().trim().notEmpty(),
-  body('apartmentRoadArea').optional().trim().notEmpty(),
-  body('city').optional().trim().notEmpty(),
-  body('state').optional().trim().notEmpty(),
-  body('pincode').optional().matches(/^\d{6}$/),
-  body('coordinates.latitude').optional().isFloat({ min: -90, max: 90 }),
-  body('coordinates.longitude').optional().isFloat({ min: -180, max: 180 })
-], protect, restrictTo('user'), async (req, res) => {
+// Update user's address
+router.put('/:id', protect, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
-
-    const address = await Address.findOne({ 
-      _id: req.params.id, 
-      user: req.user._id, 
-      isActive: true 
-    });
-
+    const address = await Address.findOne({ _id: req.params.id, user: req.user._id });
+    
     if (!address) {
       return res.status(404).json({
         status: 'error',
@@ -144,63 +106,72 @@ router.put('/:id', [
       });
     }
 
-    const allowedUpdates = [
-      'name', 'houseFlatBlock', 'apartmentRoadArea', 
-      'city', 'state', 'pincode', 'coordinates'
-    ];
-    
-    const updates = {};
-    allowedUpdates.forEach(field => {
-      if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
-      }
-    });
+    const {
+      label,
+      houseFlatBlock,
+      apartmentRoadArea,
+      landmark,
+      city,
+      state,
+      pincode,
+      latitude,
+      longitude,
+      isDefault
+    } = req.body;
 
-    // Update full address if any address components changed
-    if (updates.houseFlatBlock || updates.apartmentRoadArea || 
-        updates.city || updates.state || updates.pincode) {
-      const houseFlatBlock = updates.houseFlatBlock || address.houseFlatBlock;
-      const apartmentRoadArea = updates.apartmentRoadArea || address.apartmentRoadArea;
-      const city = updates.city || address.city;
-      const state = updates.state || address.state;
-      const pincode = updates.pincode || address.pincode;
-      
-      updates.fullAddress = `${houseFlatBlock}, ${apartmentRoadArea}, ${city}, ${state} ${pincode}`;
+    // If this is set as default, update all other addresses to not be default
+    if (isDefault) {
+      await Address.updateMany(
+        { user: req.user._id, _id: { $ne: req.params.id } },
+        { isDefault: false }
+      );
     }
 
+    // Update address
     const updatedAddress = await Address.findByIdAndUpdate(
       req.params.id,
-      updates,
-      { new: true, runValidators: true }
+      {
+        label,
+        houseFlatBlock,
+        apartmentRoadArea,
+        landmark,
+        city,
+        state,
+        pincode,
+        latitude: latitude || address.latitude,
+        longitude: longitude || address.longitude,
+        isDefault: isDefault || false,
+        fullAddress: `${houseFlatBlock}, ${apartmentRoadArea}, ${city}, ${state} - ${pincode}`
+      },
+      { new: true }
     );
+
+    // Update user's default address if needed
+    if (isDefault) {
+      await User.findByIdAndUpdate(req.user._id, {
+        defaultAddress: updatedAddress._id
+      });
+    }
 
     res.status(200).json({
       status: 'success',
       message: 'Address updated successfully',
-      data: {
-        address: updatedAddress
-      }
+      data: updatedAddress
     });
   } catch (error) {
-    console.error('Update address error:', error);
+    console.error('Error updating address:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Server error while updating address'
+      message: 'Failed to update address'
     });
   }
 });
 
-// @route   DELETE /api/addresses/:id
-// @desc    Delete an address
-// @access  Private
-router.delete('/:id', protect, restrictTo('user'), async (req, res) => {
+// Delete user's address
+router.delete('/:id', protect, async (req, res) => {
   try {
-    const address = await Address.findOne({ 
-      _id: req.params.id, 
-      user: req.user._id, 
-      isActive: true 
-    });
-
+    const address = await Address.findOne({ _id: req.params.id, user: req.user._id });
+    
     if (!address) {
       return res.status(404).json({
         status: 'error',
@@ -208,21 +179,35 @@ router.delete('/:id', protect, restrictTo('user'), async (req, res) => {
       });
     }
 
-    // Soft delete the address
-    address.isActive = false;
-    await address.save();
-
-    // If this was the default address, make another address default
-    if (address.isDefault) {
-      const nextAddress = await Address.findOne({ 
-        user: req.user._id, 
-        isActive: true,
-        _id: { $ne: address._id }
+    // Don't allow deletion of default address if it's the only address
+    const userAddressCount = await Address.countDocuments({ user: req.user._id });
+    if (address.isDefault && userAddressCount === 1) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot delete the only address'
       });
+    }
+
+    await Address.findByIdAndDelete(req.params.id);
+    
+    // Remove from user's addresses array
+    await User.findByIdAndUpdate(req.user._id, {
+      $pull: { addresses: req.params.id },
+      ...(address.isDefault && { $unset: { defaultAddress: 1 } })
+    });
+
+    // If deleted address was default, set another address as default
+    if (address.isDefault && userAddressCount > 1) {
+      const newDefaultAddress = await Address.findOneAndUpdate(
+        { user: req.user._id },
+        { isDefault: true },
+        { new: true }
+      );
       
-      if (nextAddress) {
-        nextAddress.isDefault = true;
-        await nextAddress.save();
+      if (newDefaultAddress) {
+        await User.findByIdAndUpdate(req.user._id, {
+          defaultAddress: newDefaultAddress._id
+        });
       }
     }
 
@@ -231,25 +216,19 @@ router.delete('/:id', protect, restrictTo('user'), async (req, res) => {
       message: 'Address deleted successfully'
     });
   } catch (error) {
-    console.error('Delete address error:', error);
+    console.error('Error deleting address:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Server error while deleting address'
+      message: 'Failed to delete address'
     });
   }
 });
 
-// @route   PUT /api/addresses/:id/default
-// @desc    Set an address as default
-// @access  Private
-router.put('/:id/default', protect, restrictTo('user'), async (req, res) => {
+// Set default address
+router.put('/:id/default', protect, async (req, res) => {
   try {
-    const address = await Address.findOne({ 
-      _id: req.params.id, 
-      user: req.user._id, 
-      isActive: true 
-    });
-
+    const address = await Address.findOne({ _id: req.params.id, user: req.user._id });
+    
     if (!address) {
       return res.status(404).json({
         status: 'error',
@@ -257,109 +236,139 @@ router.put('/:id/default', protect, restrictTo('user'), async (req, res) => {
       });
     }
 
-    // Remove default from all other addresses
+    // Update all addresses to not be default
     await Address.updateMany(
-      { user: req.user._id, _id: { $ne: address._id } },
+      { user: req.user._id },
       { isDefault: false }
     );
 
     // Set this address as default
-    address.isDefault = true;
-    await address.save();
+    await Address.findByIdAndUpdate(req.params.id, { isDefault: true });
+    
+    // Update user's default address
+    await User.findByIdAndUpdate(req.user._id, {
+      defaultAddress: req.params.id
+    });
 
     res.status(200).json({
       status: 'success',
-      message: 'Default address updated successfully',
-      data: {
-        address
-      }
+      message: 'Default address updated successfully'
     });
   } catch (error) {
-    console.error('Set default address error:', error);
+    console.error('Error setting default address:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Server error while setting default address'
+      message: 'Failed to set default address'
     });
   }
 });
 
-// @route   POST /api/addresses/geocode
-// @desc    Get address from coordinates
-// @access  Private
-router.post('/geocode', [
-  body('latitude').isFloat({ min: -90, max: 90 }).withMessage('Valid latitude is required'),
-  body('longitude').isFloat({ min: -180, max: 180 }).withMessage('Valid longitude is required')
-], protect, restrictTo('user'), async (req, res) => {
+// Geocode coordinates to address
+router.post('/geocode', protect, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
+    const { latitude, longitude } = req.body;
+    
+    if (!latitude || !longitude) {
       return res.status(400).json({
         status: 'error',
-        message: 'Validation failed',
-        errors: errors.array()
+        message: 'Latitude and longitude are required'
       });
     }
 
-    const { latitude, longitude } = req.body;
-
-    try {
-      // Use Nominatim for reverse geocoding
-      const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
-        params: {
-          lat: latitude,
-          lon: longitude,
-          format: 'json',
-          addressdetails: 1
-        },
-        headers: {
-          'User-Agent': 'CleanGreen-App/1.0'
-        }
-      });
-
-      const data = response.data;
-      
-      if (!data || !data.address) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Could not determine address from coordinates'
-        });
+    // Use OpenStreetMap Nominatim for reverse geocoding
+    const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+      params: {
+        lat: latitude,
+        lon: longitude,
+        format: 'json',
+        addressdetails: 1,
       }
+    });
 
-      const address = data.address;
-      const fullAddress = data.display_name;
+    if (response.data && response.data.address) {
+      const addr = response.data.address;
       
-      // Parse address components
-      const parsedAddress = {
-        houseFlatBlock: address.house_number || address.building || '',
-        apartmentRoadArea: address.road || address.suburb || address.neighbourhood || '',
-        city: address.city || address.town || address.village || address.county || '',
-        state: address.state || address.region || '',
-        pincode: address.postcode || '',
-        fullAddress: fullAddress,
-        coordinates: {
-          latitude: parseFloat(latitude),
-          longitude: parseFloat(longitude)
-        }
-      };
-
       res.status(200).json({
         status: 'success',
         data: {
-          address: parsedAddress
+          displayName: response.data.display_name,
+          area: addr.neighbourhood || addr.suburb || addr.village || '',
+          city: addr.city || addr.town || addr.village || '',
+          state: addr.state || '',
+          pincode: addr.postcode || '',
+          country: addr.country || '',
+          latitude,
+          longitude
         }
       });
-    } catch (geocodeError) {
-      console.error('Geocoding error:', geocodeError);
-      res.status(400).json({
+    } else {
+      res.status(404).json({
         status: 'error',
-        message: 'Failed to get address from coordinates'
+        message: 'Address not found for the given coordinates'
       });
     }
   } catch (error) {
-    console.error('Geocode address error:', error);
+    console.error('Error geocoding address:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Server error while geocoding address'
+      message: 'Failed to geocode address'
+    });
+  }
+});
+
+// Search addresses (like Zomato/Swiggy)
+router.get('/search', protect, async (req, res) => {
+  try {
+    const { q } = req.query;
+    
+    if (!q || q.length < 3) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Search query must be at least 3 characters'
+      });
+    }
+
+    // Use OpenStreetMap Nominatim for address search
+    const response = await axios.get('https://nominatim.openstreetmap.org/search', {
+      params: {
+        q: q,
+        format: 'json',
+        addressdetails: 1,
+        limit: 10,
+        countrycodes: 'in' // Restrict to India
+      }
+    });
+
+    if (response.data && response.data.length > 0) {
+      const results = response.data.map(item => {
+        const addr = item.address;
+        return {
+          displayName: item.display_name,
+          area: addr.neighbourhood || addr.suburb || addr.village || '',
+          city: addr.city || addr.town || addr.village || '',
+          state: addr.state || '',
+          pincode: addr.postcode || '',
+          latitude: parseFloat(item.lat),
+          longitude: parseFloat(item.lon),
+          importance: item.importance
+        };
+      });
+      
+      res.status(200).json({
+        status: 'success',
+        data: results
+      });
+    } else {
+      res.status(200).json({
+        status: 'success',
+        data: []
+      });
+    }
+  } catch (error) {
+    console.error('Error searching addresses:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to search addresses'
     });
   }
 });
