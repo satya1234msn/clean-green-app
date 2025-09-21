@@ -21,14 +21,14 @@ api.interceptors.request.use(
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
-      
+
       console.log('API Request:', {
         method: config.method?.toUpperCase(),
         url: config.url,
         baseURL: config.baseURL,
         fullURL: `${config.baseURL}${config.url}`
       });
-      
+
       return config;
     } catch (error) {
       console.error('Error getting auth token:', error);
@@ -54,12 +54,12 @@ api.interceptors.response.use(
       url: error.config?.url,
       method: error.config?.method
     });
-    
+
     if (error.response?.status === 401) {
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('userData');
     }
-    
+
     // Better error messages
     if (error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
       error.userMessage = 'Network connection failed. Please check your internet connection and try again.';
@@ -68,7 +68,7 @@ api.interceptors.response.use(
     } else if (error.response?.status >= 500) {
       error.userMessage = 'Server error. Please try again later.';
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -78,23 +78,51 @@ export const uploadAPI = {
   // Upload single image with proper error handling
   uploadImage: async (imageUri) => {
     try {
+      console.log('Starting image upload for URI:', imageUri);
+
       const formData = new FormData();
-      formData.append('image', {
+
+      // Handle different image URI formats
+      let imageFile = {
         uri: imageUri,
         type: 'image/jpeg',
-        name: 'image.jpg',
-      });
+        name: `image_${Date.now()}.jpg`,
+      };
+
+      // For React Native, we need to handle the image differently
+      if (imageUri && typeof imageUri === 'object' && imageUri.uri) {
+        imageFile = {
+          uri: imageUri.uri,
+          type: imageUri.type || 'image/jpeg',
+          name: imageUri.fileName || `image_${Date.now()}.jpg`,
+        };
+      }
+
+      formData.append('image', imageFile);
+
+      console.log('FormData created, making API call...');
 
       const response = await api.post('/uploads/image', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
         timeout: 60000, // 60 seconds for image upload
+        transformRequest: (data, headers) => {
+          // Don't stringify FormData
+          return data;
+        },
       });
-      
+
+      console.log('Image upload successful:', response.data);
       return response.data;
     } catch (error) {
       console.error('Image upload error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        config: error.config,
+        response: error.response
+      });
       throw error;
     }
   },
@@ -117,7 +145,7 @@ export const uploadAPI = {
         },
         timeout: 60000,
       });
-      
+
       return response.data;
     } catch (error) {
       console.error('Multiple images upload error:', error);

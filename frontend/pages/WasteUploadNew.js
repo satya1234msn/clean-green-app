@@ -23,7 +23,7 @@ export default function WasteUploadNew({ navigation }) {
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [images, setImages] = useState([]);
   const [uploadedImages, setUploadedImages] = useState([]);
-  
+
   // Form state
   const [wasteType, setWasteType] = useState('');
   const [wasteDetails, setWasteDetails] = useState({
@@ -43,14 +43,14 @@ export default function WasteUploadNew({ navigation }) {
   const initializeData = async () => {
     try {
       setLoading(true);
-      
+
       // Get current user
       const user = await authService.getCurrentUser();
       setCurrentUser(user);
-      
+
       // Load user's addresses
       await loadAddresses();
-      
+
     } catch (error) {
       console.error('Error initializing data:', error);
       Alert.alert('Error', 'Failed to load user data');
@@ -64,7 +64,7 @@ export default function WasteUploadNew({ navigation }) {
       const response = await addressAPI.getAddresses();
       if (response.status === 'success') {
         setAddresses(response.data);
-        
+
         // Auto-select default address
         const defaultAddress = response.data.find(addr => addr.isDefault);
         if (defaultAddress) {
@@ -101,9 +101,9 @@ export default function WasteUploadNew({ navigation }) {
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const newImage = result.assets;
+        const newImage = result.assets[0]; // Get the first (and only) image from the array
         setImages(prev => [...prev, newImage]);
-        
+
         // Upload image immediately
         await uploadSingleImage(newImage);
       }
@@ -116,10 +116,10 @@ export default function WasteUploadNew({ navigation }) {
   const uploadSingleImage = async (image) => {
     try {
       setUploadingImages(true);
-      
+
       console.log('Uploading image:', image.uri);
       const response = await uploadAPI.uploadImage(image.uri);
-      
+
       if (response.status === 'success') {
         setUploadedImages(prev => [...prev, response.data.imageUrl]);
         console.log('Image uploaded successfully:', response.data.imageUrl);
@@ -128,12 +128,12 @@ export default function WasteUploadNew({ navigation }) {
       }
     } catch (error) {
       console.error('Error uploading image:', error);
-      Alert.alert('Upload Error', 
-        error.userMessage || 
-        error.response?.data?.message || 
+      Alert.alert('Upload Error',
+        error.userMessage ||
+        error.response?.data?.message ||
         'Failed to upload image. Please check your connection and try again.'
       );
-      
+
       // Remove the failed image from local state
       setImages(prev => prev.filter(img => img.uri !== image.uri));
     } finally {
@@ -222,8 +222,8 @@ export default function WasteUploadNew({ navigation }) {
       console.error('Error creating pickup request:', error);
       Alert.alert(
         'Error',
-        error.userMessage || 
-        error.response?.data?.message || 
+        error.userMessage ||
+        error.response?.data?.message ||
         'Failed to create pickup request. Please try again.'
       );
     } finally {
@@ -262,7 +262,7 @@ export default function WasteUploadNew({ navigation }) {
         {/* Address Selection */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Pickup Address</Text>
-          
+
           {addresses.length === 0 ? (
             <TouchableOpacity
               style={styles.addAddressButton}
@@ -331,7 +331,7 @@ export default function WasteUploadNew({ navigation }) {
         {wasteType && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Waste Details</Text>
-            
+
             {(wasteType === 'food' || wasteType === 'mixed') && (
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Number of Food Containers</Text>
@@ -346,7 +346,7 @@ export default function WasteUploadNew({ navigation }) {
                 />
               </View>
             )}
-            
+
             {(wasteType === 'bottles' || wasteType === 'mixed') && (
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Number of Bottles</Text>
@@ -361,7 +361,7 @@ export default function WasteUploadNew({ navigation }) {
                 />
               </View>
             )}
-            
+
             {(wasteType === 'other' || wasteType === 'mixed') && (
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Other Items Description</Text>
@@ -377,7 +377,7 @@ export default function WasteUploadNew({ navigation }) {
                 />
               </View>
             )}
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Estimated Weight (kg)</Text>
               <TextInput
@@ -397,7 +397,7 @@ export default function WasteUploadNew({ navigation }) {
             <Text style={styles.sectionTitle}>Photos ({images.length}/5)</Text>
             {uploadingImages && <ActivityIndicator size="small" color="#4CAF50" />}
           </View>
-          
+
           <View style={styles.imageContainer}>
             {images.map((image, index) => (
               <View key={index} style={styles.imageWrapper}>
@@ -410,7 +410,7 @@ export default function WasteUploadNew({ navigation }) {
                 </TouchableOpacity>
               </View>
             ))}
-            
+
             {images.length < 5 && (
               <TouchableOpacity
                 style={styles.addImageButton}
@@ -426,7 +426,7 @@ export default function WasteUploadNew({ navigation }) {
               </TouchableOpacity>
             )}
           </View>
-          
+
           <Text style={styles.imageHint}>
             Add clear photos of your waste items. This helps our team process your request faster.
           </Text>
@@ -451,7 +451,7 @@ export default function WasteUploadNew({ navigation }) {
               </Text>
               <Text style={styles.priorityDesc}>Get pickup within 2-4 hours</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
                 styles.priorityOption,
@@ -468,7 +468,7 @@ export default function WasteUploadNew({ navigation }) {
               <Text style={styles.priorityDesc}>Choose specific date & time</Text>
             </TouchableOpacity>
           </View>
-          
+
           {priority === 'scheduled' && (
             <View style={styles.scheduleInputs}>
               <View style={styles.inputGroup}>
@@ -485,7 +485,7 @@ export default function WasteUploadNew({ navigation }) {
                   </Text>
                 </TouchableOpacity>
               </View>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Time Slot</Text>
                 <View style={styles.timeSlots}>
@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 15,
   },
-  
+
   // Address styles
   addAddressButton: {
     backgroundColor: '#4CAF50',
@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  
+
   // Waste type styles
   wasteTypes: {
     flexDirection: 'row',
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-  
+
   // Input styles
   inputGroup: {
     marginBottom: 15,
@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
     height: 80,
     textAlignVertical: 'top',
   },
-  
+
   // Image styles
   imageContainer: {
     flexDirection: 'row',
@@ -748,7 +748,7 @@ const styles = StyleSheet.create({
     color: '#666',
     fontStyle: 'italic',
   },
-  
+
   // Priority styles
   priorityOptions: {
     flexDirection: 'row',
@@ -782,7 +782,7 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-  
+
   // Schedule styles
   scheduleInputs: {
     backgroundColor: '#fff',
@@ -828,7 +828,7 @@ const styles = StyleSheet.create({
   selectedTimeSlotText: {
     color: '#fff',
   },
-  
+
   // Submit button styles
   submitButton: {
     backgroundColor: '#4CAF50',
