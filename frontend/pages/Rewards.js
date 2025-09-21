@@ -21,32 +21,49 @@ export default function Rewards({ navigation }) {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>YOUR REWARDS!</Text>
+        <TouchableOpacity onPress={handleBack}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Your Rewards</Text>
+        <View style={styles.placeholder} />
       </View>
 
       <View style={styles.content}>
         {/* Rewards List */}
-        <View style={styles.rewardsContainer}>
-          {rewards.map((reward) => (
-            <View key={reward.id} style={styles.rewardItem}>
-              <View style={styles.couponPlaceholder}>
-                <Text style={styles.couponText}>{reward.coupon}</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Available Rewards</Text>
+          <View style={styles.rewardsContainer}>
+            {rewards.map((reward) => (
+              <View key={reward.id} style={styles.rewardItem}>
+                <View style={styles.couponCard}>
+                  <Text style={styles.couponText}>{reward.coupon}</Text>
+                </View>
+                <View style={styles.rewardInfo}>
+                  <Text style={styles.rewardDescription}>
+                    {reward.title}
+                  </Text>
+                  <Text style={styles.rewardDetail}>
+                    {reward.description}
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.redeemButton}>
+                  <Text style={styles.redeemButtonText}>Redeem</Text>
+                </TouchableOpacity>
               </View>
-              <Text style={styles.rewardDescription}>
-                {reward.title}
-              </Text>
-            </View>
-          ))}
+            ))}
+          </View>
         </View>
 
         {/* Navigation Buttons */}
-        <View style={styles.navigationButtons}>
-          <TouchableOpacity style={styles.navButton} onPress={handleBack}>
-            <Text style={styles.navButtonText}>Back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navButton} onPress={handleHome}>
-            <Text style={styles.navButtonText}>Home</Text>
-          </TouchableOpacity>
+        <View style={styles.section}>
+          <View style={styles.navigationButtons}>
+            <TouchableOpacity style={styles.navButton} onPress={handleBack}>
+              <Text style={styles.navButtonText}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navButton} onPress={handleHome}>
+              <Text style={styles.navButtonText}>Home</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </ScrollView>
@@ -56,50 +73,94 @@ export default function Rewards({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F8E9',
+    backgroundColor: '#f5f5f5',
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    backgroundColor: '#fff',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  backText: {
+    fontSize: 16,
+    color: '#4CAF50',
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#222',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  placeholder: {
+    width: 50,
   },
   content: {
+    flex: 1,
     padding: 20,
   },
+  section: {
+    marginBottom: 25,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 15,
+  },
   rewardsContainer: {
-    marginBottom: 30,
+    marginBottom: 20,
   },
   rewardItem: {
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  couponPlaceholder: {
-    width: 200,
-    height: 100,
     backgroundColor: '#fff',
+    padding: 15,
     borderRadius: 8,
-    justifyContent: 'center',
+    marginBottom: 15,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  couponCard: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 6,
+    marginRight: 15,
   },
   couponText: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  rewardInfo: {
+    flex: 1,
   },
   rewardDescription: {
     fontSize: 16,
-    color: '#222',
-    fontWeight: '500',
+    color: '#333',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  rewardDetail: {
+    fontSize: 14,
+    color: '#666',
+  },
+  redeemButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  redeemButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   navigationButtons: {
     flexDirection: 'row',
@@ -111,13 +172,18 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#e0e0e0',
     flex: 0.45,
     alignItems: 'center',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
   },
   navButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#222',
+    color: '#333',
   },
 });

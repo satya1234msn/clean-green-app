@@ -15,7 +15,7 @@ export default function Dashboard({ navigation }) {
   const [user, setUser] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     loadDashboardData();
   }, []);
@@ -23,17 +23,17 @@ export default function Dashboard({ navigation }) {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
+
       // Get current user
       const currentUser = await authService.getCurrentUser();
       setUser(currentUser);
-      
+
       // Get dashboard data
       const response = await userAPI.getDashboard();
-      
+
       if (response.status === 'success') {
         setDashboardData(response.data);
-        
+
         // Set current address
         if (currentUser?.defaultAddress) {
           setCurrentAddress(currentUser.defaultAddress.fullAddress || 'No address set');
@@ -49,17 +49,17 @@ export default function Dashboard({ navigation }) {
 
   // Stats based on dashboard data
   const stats = [
-    { 
-      label: 'Total Pickups', 
-      value: dashboardData?.stats?.totalPickups?.toString() || '0', 
-      icon: '📤', 
-      color: '#4CAF50' 
+    {
+      label: 'Total Pickups',
+      value: dashboardData?.stats?.totalPickups?.toString() || '0',
+      icon: '📤',
+      color: '#4CAF50'
     },
-    { 
-      label: 'Total Points', 
-      value: dashboardData?.stats?.totalPoints?.toString() || '0', 
-      icon: '⭐', 
-      color: '#FF9800' 
+    {
+      label: 'Total Points',
+      value: dashboardData?.stats?.totalPoints?.toString() || '0',
+      icon: '⭐',
+      color: '#FF9800'
     },
   ];
 
@@ -168,7 +168,7 @@ export default function Dashboard({ navigation }) {
               <Text style={styles.contributionDate}>{contribution.date}</Text>
               <Text style={[
                 styles.contributionArrow,
-                { color: contribution.status === 'upward' ? '#4CAF50' : '#F44336' }
+                { color: contribution.status === 'upward' ? '#4CAF50' : '#f44336' }
               ]}>
                 {contribution.status === 'upward' ? '↗️' : '↘️'}
               </Text>
@@ -190,7 +190,7 @@ export default function Dashboard({ navigation }) {
         </Card>
 
         {/* Candlestick Chart */}
-        <LineChart 
+        <LineChart
           data={[
             { label: 'Mon', value: 12 },
             { label: 'Tue', value: 16 },
@@ -212,7 +212,7 @@ export default function Dashboard({ navigation }) {
               <Text style={styles.historyAction}>{item.action}</Text>
               <Text style={[
                 styles.historyPoints,
-                { color: item.status === 'accepted' ? '#4CAF50' : '#F44336' }
+                { color: item.status === 'accepted' ? '#4CAF50' : '#f44336' }
               ]}>
                 {item.points}
               </Text>
@@ -225,8 +225,8 @@ export default function Dashboard({ navigation }) {
 
         {/* Support Button */}
         <View style={styles.supportContainer}>
-          <Button 
-            title="Support" 
+          <Button
+            title="Support"
             onPress={handleSupport}
             style={styles.supportButton}
           />
@@ -237,12 +237,12 @@ export default function Dashboard({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#F1F8E9', // Very light green background
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
   },
   header: {
-    backgroundColor: '#fff', // White header
+    backgroundColor: '#fff',
     paddingTop: 60,
     paddingBottom: 20,
     paddingHorizontal: 20,
@@ -261,26 +261,26 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#E8F5E9', // Light Green
+    backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
   },
   profileIconText: {
     fontSize: 24,
-    color: '#2E7D32', // Dark Green
+    color: '#333',
   },
   addressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#f0f0f0',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     marginTop: 12,
     marginHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#C8E6C9',
+    borderColor: '#e0e0e0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -289,19 +289,19 @@ const styles = StyleSheet.create({
   },
   addressText: {
     fontSize: 14,
-    color: '#666', // Gray Text
+    color: '#666',
     flex: 1,
   },
   editAddressText: {
     fontSize: 16,
-    color: '#2E7D32', // Dark Green
+    color: '#4CAF50',
     fontWeight: '600',
   },
   actionButtons: {
     flexDirection: 'row',
   },
   headerButton: {
-    backgroundColor: '#4CAF50', // Primary Green
+    backgroundColor: '#4CAF50',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
@@ -316,19 +316,19 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 20,
   },
-  statRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    marginBottom: 20 
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20
   },
   sectionCard: {
     marginBottom: 20,
-    backgroundColor: '#fff', // White card background
+    backgroundColor: '#fff',
   },
-  sectionTitle: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: '#1B5E20', // Deep Green
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
     marginBottom: 16
   },
   contributionItem: {
@@ -336,13 +336,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#f0f0f0',
   },
   contributionType: {
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
-    color: '#222',
+    color: '#333',
   },
   contributionDate: {
     fontSize: 14,
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#f0f0f0',
   },
   awardType: {
     fontSize: 14,
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
-    color: '#222',
+    color: '#333',
     marginLeft: 8,
   },
   awardDate: {
@@ -382,17 +382,17 @@ const styles = StyleSheet.create({
   historyItem: {
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#f0f0f0',
   },
   historyDate: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2E7D32', // Dark Green
+    color: '#333',
     marginBottom: 4,
   },
   historyAction: {
     fontSize: 16,
-    color: '#1B5E20', // Deep Green
+    color: '#333',
     marginBottom: 2,
   },
   historyPoints: {
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   moreButtonText: {
-    color: '#2E7D32', // Dark Green
+    color: '#4CAF50',
     fontSize: 16,
     fontWeight: '600',
     textDecorationLine: 'underline',
@@ -414,6 +414,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   supportButton: {
-    backgroundColor: '#4CAF50', // Primary Green
+    backgroundColor: '#4CAF50',
   },
 });

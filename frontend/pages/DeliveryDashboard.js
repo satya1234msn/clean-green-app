@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import Card from '../components/Card';
-import { userAPI, deliveryAPI } from '../services/apiService';
+import { userAPI, pickupAPI } from '../services/apiService';
 import { authService } from '../services/authService';
 
 export default function DeliveryDashboard({ navigation }) {
@@ -36,15 +36,15 @@ export default function DeliveryDashboard({ navigation }) {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
+
       // Get current user
       const currentUser = await authService.getCurrentUser();
       setUser(currentUser);
       setIsOnline(currentUser?.isOnline || false);
-      
+
       // Get dashboard data
       const response = await userAPI.getDashboard();
-      
+
       if (response.status === 'success') {
         setDashboardData(response.data);
         setAvailablePickups(response.data.availablePickups || []);
@@ -60,18 +60,18 @@ export default function DeliveryDashboard({ navigation }) {
   const handleToggleOnline = async () => {
     try {
       const newOnlineStatus = !isOnline;
-      
-      // Update online status in backend
-      await deliveryAPI.updateOnlineStatus(newOnlineStatus);
-      
+
+      // Update online status in backend using userAPI instead of deliveryAPI
+      await userAPI.updateOnlineStatus(newOnlineStatus);
+
       setIsOnline(newOnlineStatus);
-      
+
       if (newOnlineStatus) {
         // Fetch available pickups when going online
-        const response = await deliveryAPI.getAvailablePickups();
+        const response = await pickupAPI.getAvailablePickups();
         if (response.status === 'success') {
           setAvailablePickups(response.data.pickups || []);
-          
+
           // If there are available pickups, show the first one
           if (response.data.pickups && response.data.pickups.length > 0) {
             const pickup = response.data.pickups[0];
@@ -104,8 +104,8 @@ export default function DeliveryDashboard({ navigation }) {
       }
 
       // Accept pickup in backend
-      const response = await deliveryAPI.acceptPickup(currentPickup.pickup._id);
-      
+      const response = await pickupAPI.acceptPickup(currentPickup.pickup._id);
+
       if (response.status === 'success') {
         Alert.alert('Pickup Accepted', 'You have accepted the pickup request!');
         // Navigate to pickup accepted page
@@ -131,8 +131,8 @@ export default function DeliveryDashboard({ navigation }) {
       }
 
       // Reject pickup in backend
-      const response = await deliveryAPI.rejectPickup(currentPickup.pickup._id);
-      
+      const response = await pickupAPI.rejectPickup(currentPickup.pickup._id);
+
       if (response.status === 'success') {
         Alert.alert('Pickup Rejected', 'You have rejected the pickup request.');
         setCurrentPickup(null);
@@ -161,8 +161,8 @@ export default function DeliveryDashboard({ navigation }) {
         <TouchableOpacity style={styles.profileIcon} onPress={handleProfile}>
           <Text style={styles.profileIconText}>👤</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.onlineButton, isOnline && styles.onlineButtonActive]} 
+        <TouchableOpacity
+          style={[styles.onlineButton, isOnline && styles.onlineButtonActive]}
           onPress={handleToggleOnline}
         >
           <Text style={[styles.onlineButtonText, isOnline && styles.onlineButtonTextActive]}>
@@ -231,7 +231,7 @@ export default function DeliveryDashboard({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F8E9', // Very light green background
+    backgroundColor: '#f5f5f5',
   },
   header: {
     flexDirection: 'row',
@@ -251,13 +251,13 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
   },
   profileIconText: {
     fontSize: 24,
-    color: '#2E7D32',
+    color: '#333',
   },
   onlineButton: {
     backgroundColor: '#4CAF50',
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   onlineButtonActive: {
-    backgroundColor: '#F44336',
+    backgroundColor: '#f44336',
   },
   onlineButtonText: {
     color: '#fff',
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1B5E20',
+    color: '#333',
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
   pickupTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1B5E20',
+    color: '#333',
     marginBottom: 12,
   },
   pickupDetails: {
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
   pickupType: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#222',
+    color: '#333',
     marginBottom: 4,
   },
   pickupDistance: {
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   rejectButton: {
-    backgroundColor: '#F44336',
+    backgroundColor: '#f44336',
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
   ratingsTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1B5E20',
+    color: '#333',
     marginBottom: 12,
   },
   ratingContainer: {

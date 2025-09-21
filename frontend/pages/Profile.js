@@ -69,7 +69,7 @@ export default function Profile({ navigation }) {
       if (!result.canceled) {
         setFormData(prev => ({
           ...prev,
-          profileImage: result.assets.uri,
+          profileImage: result.assets[0].uri,
         }));
       }
     } catch (error) {
@@ -86,9 +86,9 @@ export default function Profile({ navigation }) {
       }
 
       setLoading(true);
-      
+
       let profileImageUrl = formData.profileImage;
-      
+
       // Upload new profile image if changed
       if (formData.profileImage && formData.profileImage !== user?.profileImage) {
         try {
@@ -110,12 +110,12 @@ export default function Profile({ navigation }) {
       };
 
       const response = await userAPI.updateProfile(updateData);
-      
+
       if (response.status === 'success') {
         setUser(response.data.user);
         setEditing(false);
         Alert.alert('Success', 'Profile updated successfully');
-        
+
         // Update stored user data
         await authService.storeAuthData(
           await AsyncStorage.getItem('authToken'),
@@ -258,8 +258,8 @@ export default function Profile({ navigation }) {
           {/* User Stats */}
           {user && (
             <View style={styles.statsContainer}>
-              <Text style={styles.statsTitle}>Your Stats</Text>
-              
+              <Text style={styles.sectionTitle}>Your Stats</Text>
+
               <View style={styles.statRow}>
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>{user.totalPoints || 0}</Text>
@@ -270,7 +270,7 @@ export default function Profile({ navigation }) {
                   <Text style={styles.statLabel}>Total Pickups</Text>
                 </View>
               </View>
-              
+
               {user.role === 'delivery' && (
                 <View style={styles.statRow}>
                   <View style={styles.statItem}>
@@ -297,7 +297,7 @@ export default function Profile({ navigation }) {
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.button, styles.saveButton]}
                 onPress={handleSaveProfile}
@@ -435,19 +435,19 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#333',
     marginBottom: 8,
   },
   input: {
+    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#e0e0e0',
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 12,
-    fontSize: 16,
-    backgroundColor: '#fff',
+    fontSize: 14,
   },
   disabledInput: {
     backgroundColor: '#f5f5f5',
@@ -457,6 +457,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 5,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 15,
   },
   statsContainer: {
     backgroundColor: '#fff',
@@ -468,13 +474,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-  },
-  statsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 15,
-    textAlign: 'center',
   },
   statRow: {
     flexDirection: 'row',
