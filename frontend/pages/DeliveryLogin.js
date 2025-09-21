@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import InputField from '../components/InputField';
 import Button from '../components/Button';
 
@@ -22,18 +22,19 @@ export default function DeliveryLogin({ navigation }) {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.logoContainer}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>🚚</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.logoContainer}>
+            <View style={styles.logo}>
+              <Text style={styles.logoText}>🚚</Text>
+            </View>
+            <Text style={styles.logoTitle}>CleanGreen Delivery</Text>
           </View>
-          <Text style={styles.logoTitle}>CleanGreen Delivery</Text>
+          <Text style={styles.motivationalText}>Come join hands & play a key role in Green INDIA</Text>
         </View>
-        <Text style={styles.motivationalText}>Come join hands & play a key role in Green INDIA</Text>
-      </View>
 
-      <View style={styles.content}>
+        <View style={styles.content}>
         {/* Login Form */}
         <View style={styles.formContainer}>
           <InputField 
@@ -64,7 +65,8 @@ export default function DeliveryLogin({ navigation }) {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -73,6 +75,9 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1, 
     backgroundColor: '#F1F8E9', // Very light green background
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   header: {
     paddingTop: 60,

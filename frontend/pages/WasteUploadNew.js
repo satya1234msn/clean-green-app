@@ -98,7 +98,7 @@ export default function WasteUploadNew({ navigation }) {
       Alert.alert('Selection Required', 'Please select a waste type');
       return;
     }
-    navigation.navigate('AfterScheduling', {
+    navigation.navigate('SchedulePickupPage', {
       wasteType: selectedWasteType,
       foodBoxes,
       bottles,

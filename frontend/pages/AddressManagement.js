@@ -20,23 +20,41 @@ export default function AddressManagement({ navigation }) {
   ]);
 
   const [editingAddress, setEditingAddress] = useState(null);
-  const [newAddress, setNewAddress] = useState({ name: '', address: '' });
+  const [newAddress, setNewAddress] = useState({ 
+    name: '', 
+    houseFlatBlock: '', 
+    apartmentRoadArea: '', 
+    city: '', 
+    state: '', 
+    pincode: '',
+    fullAddress: ''
+  });
+  const [isAddingNew, setIsAddingNew] = useState(false);
 
   const handleAddAddress = () => {
-    if (!newAddress.name.trim() || !newAddress.address.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
+    if (!newAddress.name.trim() || !newAddress.fullAddress.trim()) {
+      Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
     const address = {
       id: Date.now(),
       name: newAddress.name.trim(),
-      address: newAddress.address.trim(),
+      address: newAddress.fullAddress.trim(),
       isDefault: addresses.length === 0,
     };
 
     setAddresses([...addresses, address]);
-    setNewAddress({ name: '', address: '' });
+    setNewAddress({ 
+      name: '', 
+      houseFlatBlock: '', 
+      apartmentRoadArea: '', 
+      city: '', 
+      state: '', 
+      pincode: '',
+      fullAddress: ''
+    });
+    setIsAddingNew(false);
     Alert.alert('Success', 'Address added successfully!');
   };
 
@@ -80,38 +98,89 @@ export default function AddressManagement({ navigation }) {
 
   const getCurrentLocation = async () => {
     try {
+      // Request location permission
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Location permission is required to get your current address.');
+        Alert.alert(
+          'Permission Required', 
+          'Location permission is required to get your current address. Please enable location access in your device settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Settings', onPress: () => {
+              // In a real app, you would open device settings
+              Alert.alert('Settings', 'Please enable location permission in your device settings and try again.');
+            }}
+          ]
+        );
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
+      // Show loading message
+      Alert.alert('Getting Location', 'Please wait while we get your current location...');
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+        timeout: 10000,
+        maximumAge: 60000,
+      });
+      
       const { latitude, longitude } = location.coords;
       
       // Use OpenStreetMap geocoding service
       const geocodeResult = await reverseGeocode(latitude, longitude);
       
       if (geocodeResult.success) {
+        const addressString = geocodeResult.address;
+        const addressParts = addressString.split(', ');
+        
+        // Parse address components
+        let city = '';
+        let state = '';
+        let pincode = '';
+        let area = '';
+        
+        if (addressParts.length >= 3) {
+          city = addressParts[addressParts.length - 3] || '';
+          state = addressParts[addressParts.length - 2] || '';
+          pincode = addressParts[addressParts.length - 1] || '';
+          area = addressParts.slice(0, -3).join(', ') || '';
+        }
+        
         setNewAddress(prev => ({
           ...prev,
-          address: geocodeResult.address
+          name: 'Current Location',
+          houseFlatBlock: '',
+          apartmentRoadArea: area,
+          city: city,
+          state: state,
+          pincode: pincode,
+          fullAddress: addressString
         }));
         
-        Alert.alert('Location Found', `Current address: ${geocodeResult.address}`);
+        setIsAddingNew(true);
+        Alert.alert('Location Found', `Current address detected and filled!\n\n${addressString}`);
       } else {
         // Fallback to coordinates if geocoding fails
         const address = `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`;
         setNewAddress(prev => ({
           ...prev,
-          address: address
+          name: 'Current Location',
+          fullAddress: address
         }));
         
-        Alert.alert('Location Found', `Current location: ${address}`);
+        setIsAddingNew(true);
+        Alert.alert('Location Found', `Current location coordinates: ${address}`);
       }
     } catch (error) {
       console.error('Error getting location:', error);
-      Alert.alert('Error', 'Failed to get current location. Please try again.');
+      Alert.alert(
+        'Location Error', 
+        'Failed to get current location. Please check your location settings and try again.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: getCurrentLocation }
+        ]
+      );
     }
   };
 
@@ -184,19 +253,60 @@ export default function AddressManagement({ navigation }) {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Full Address</Text>
+            <Text style={styles.inputLabel}>House/Flat/Block No.</Text>
             <TextInput
-              style={[styles.textInput, styles.textArea]}
-              placeholder="Enter complete address"
-              value={newAddress.address}
-              onChangeText={(text) => setNewAddress({ ...newAddress, address: text })}
-              multiline
-              numberOfLines={3}
+              style={styles.textInput}
+              placeholder="Enter house/flat/block number"
+              value={newAddress.houseFlatBlock}
+              onChangeText={(text) => setNewAddress({ ...newAddress, houseFlatBlock: text })}
             />
-            <TouchableOpacity style={styles.locationButton} onPress={getCurrentLocation}>
-              <Text style={styles.locationButtonText}>📍 Use Current Location</Text>
-            </TouchableOpacity>
           </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Apartment/Road/Area</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Enter apartment/road/area"
+              value={newAddress.apartmentRoadArea}
+              onChangeText={(text) => setNewAddress({ ...newAddress, apartmentRoadArea: text })}
+            />
+          </View>
+
+          <View style={styles.inputRow}>
+            <View style={[styles.inputContainer, styles.halfWidth]}>
+              <Text style={styles.inputLabel}>City</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="City"
+                value={newAddress.city}
+                onChangeText={(text) => setNewAddress({ ...newAddress, city: text })}
+              />
+            </View>
+            <View style={[styles.inputContainer, styles.halfWidth]}>
+              <Text style={styles.inputLabel}>State</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="State"
+                value={newAddress.state}
+                onChangeText={(text) => setNewAddress({ ...newAddress, state: text })}
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Pincode</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Enter pincode"
+              value={newAddress.pincode}
+              onChangeText={(text) => setNewAddress({ ...newAddress, pincode: text })}
+              keyboardType="numeric"
+            />
+          </View>
+
+          <TouchableOpacity style={styles.locationButton} onPress={getCurrentLocation}>
+            <Text style={styles.locationButtonText}>📍 Use Current Location</Text>
+          </TouchableOpacity>
 
           <View style={styles.formButtons}>
             {editingAddress ? (
@@ -332,6 +442,13 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     marginBottom: 16,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  halfWidth: {
+    width: '48%',
   },
   inputLabel: {
     fontSize: 16,

@@ -34,6 +34,7 @@ export default function WarehouseNavigation({ navigation, route }) {
             duration: result.duration,
           });
         } else {
+          console.log('Using fallback route calculation for warehouse');
           const fallbackResult = getFallbackDirections(currentLocation, warehouseLocation);
           setRouteWaypoints(fallbackResult.waypoints);
           setRouteInfo({
@@ -43,6 +44,7 @@ export default function WarehouseNavigation({ navigation, route }) {
         }
       } catch (error) {
         console.error('Route calculation error:', error);
+        console.log('Using fallback route calculation for warehouse');
         const fallbackResult = getFallbackDirections(currentLocation, warehouseLocation);
         setRouteWaypoints(fallbackResult.waypoints);
         setRouteInfo({
@@ -55,7 +57,7 @@ export default function WarehouseNavigation({ navigation, route }) {
     };
 
     calculateRoute();
-  }, []);
+  }, [currentLocation, warehouseLocation]);
 
   // Simulate movement along the route
   useEffect(() => {

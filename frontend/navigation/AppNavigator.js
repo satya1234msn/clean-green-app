@@ -17,6 +17,8 @@ import AddressManagement from '../pages/AddressManagement';
 import Support from '../pages/Support';
 import WarehouseNavigation from '../pages/WarehouseNavigation';
 import UserTrackingMap from '../components/UserTrackingMap';
+import EarningsPage from '../pages/EarningsPage';
+import SchedulePickupPage from '../pages/SchedulePickupPage';
 
 const Stack = createNativeStackNavigator();
 
@@ -40,6 +42,8 @@ export default function AppNavigator() {
       <Stack.Screen name="Support" component={Support} />
       <Stack.Screen name="WarehouseNavigation" component={WarehouseNavigation} />
       <Stack.Screen name="UserTrackingMap" component={UserTrackingMap} />
+      <Stack.Screen name="EarningsPage" component={EarningsPage} />
+      <Stack.Screen name="SchedulePickupPage" component={SchedulePickupPage} />
     </Stack.Navigator>
   );
 }

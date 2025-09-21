@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from
 import StatCard from '../components/StatCard';
 import Card from '../components/Card';
 import Button from '../components/Button';
-import CandlestickChart from '../components/CandlestickChart';
+import LineChart from '../components/LineChart';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
@@ -121,7 +121,18 @@ export default function Dashboard({ navigation }) {
         </Card>
 
         {/* Candlestick Chart */}
-        <CandlestickChart />
+        <LineChart 
+          data={[
+            { label: 'Mon', value: 12 },
+            { label: 'Tue', value: 16 },
+            { label: 'Wed', value: 18 },
+            { label: 'Thu', value: 20 },
+            { label: 'Fri', value: 23 },
+            { label: 'Sat', value: 26 },
+            { label: 'Sun', value: 28 },
+          ]}
+          title="Waste Contribution Trend"
+        />
 
         {/* Detailed History */}
         <Card style={styles.sectionCard}>
