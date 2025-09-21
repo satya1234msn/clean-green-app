@@ -3,7 +3,11 @@ import axios from 'axios';
 
 // Base URL for the API
 // Use your computer's IP address instead of localhost for device testing
-const BASE_URL = 'http://192.168.29.56:5000/api';
+import getEnvVars from '../config';
+
+const { API_BASE_URL } = getEnvVars();
+
+const BASE_URL = API_BASE_URL;
 
 // Create axios instance
 const api = axios.create({
