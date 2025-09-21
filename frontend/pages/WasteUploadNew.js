@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { pickupAPI, uploadAPI } from '../services/apiService';
+import { authService } from '../services/authService';
 
 export default function WasteUploadNew({ navigation }) {
   const [selectedWasteType, setSelectedWasteType] = useState('');
@@ -93,33 +95,103 @@ export default function WasteUploadNew({ navigation }) {
     setUploadedImages(newImages);
   };
 
-  const handleSchedulePickup = () => {
+  const handleSchedulePickup = async () => {
     if (!selectedWasteType) {
       Alert.alert('Selection Required', 'Please select a waste type');
       return;
     }
-    navigation.navigate('SchedulePickupPage', {
-      wasteType: selectedWasteType,
-      foodBoxes,
-      bottles,
-      otherItems,
-      images: uploadedImages,
-    });
+
+    try {
+      // Upload images first
+      const uploadedImageUrls = [];
+      for (const image of uploadedImages) {
+        const uploadResult = await uploadAPI.uploadImage(image.uri);
+        if (uploadResult.status === 'success') {
+          uploadedImageUrls.push(uploadResult.data.url);
+        }
+      }
+
+      // Get current user and address
+      const currentUser = await authService.getCurrentUser();
+      if (!currentUser?.defaultAddress) {
+        Alert.alert('Address Required', 'Please set a default address in your profile');
+        return;
+      }
+
+      // Create pickup request
+      const pickupData = {
+        wasteType: selectedWasteType,
+        wasteDetails: {
+          foodBoxes: selectedWasteType === 'food' ? parseInt(foodBoxes) || 0 : 0,
+          bottles: selectedWasteType === 'bottles' ? parseInt(bottles) || 0 : 0,
+          otherItems: selectedWasteType === 'other' ? otherItems : '',
+        },
+        images: uploadedImageUrls,
+        address: currentUser.defaultAddress._id,
+        priority: 'scheduled',
+        scheduledDate: new Date(), // Will be updated in SchedulePickupPage
+      };
+
+      navigation.navigate('SchedulePickupPage', {
+        pickupData,
+      });
+    } catch (error) {
+      console.error('Error preparing pickup request:', error);
+      Alert.alert('Error', 'Failed to prepare pickup request');
+    }
   };
 
-  const handlePickupNow = () => {
+  const handlePickupNow = async () => {
     if (!selectedWasteType) {
       Alert.alert('Selection Required', 'Please select a waste type');
       return;
     }
-    navigation.navigate('AfterScheduling', {
-      wasteType: selectedWasteType,
-      foodBoxes,
-      bottles,
-      otherItems,
-      images: uploadedImages,
-      immediatePickup: true,
-    });
+
+    try {
+      // Upload images first
+      const uploadedImageUrls = [];
+      for (const image of uploadedImages) {
+        const uploadResult = await uploadAPI.uploadImage(image.uri);
+        if (uploadResult.status === 'success') {
+          uploadedImageUrls.push(uploadResult.data.url);
+        }
+      }
+
+      // Get current user and address
+      const currentUser = await authService.getCurrentUser();
+      if (!currentUser?.defaultAddress) {
+        Alert.alert('Address Required', 'Please set a default address in your profile');
+        return;
+      }
+
+      // Create immediate pickup request
+      const pickupData = {
+        wasteType: selectedWasteType,
+        wasteDetails: {
+          foodBoxes: selectedWasteType === 'food' ? parseInt(foodBoxes) || 0 : 0,
+          bottles: selectedWasteType === 'bottles' ? parseInt(bottles) || 0 : 0,
+          otherItems: selectedWasteType === 'other' ? otherItems : '',
+        },
+        images: uploadedImageUrls,
+        address: currentUser.defaultAddress._id,
+        priority: 'now',
+      };
+
+      // Submit pickup request to backend
+      const response = await pickupAPI.createPickup(pickupData);
+      
+      if (response.status === 'success') {
+        navigation.navigate('AfterScheduling', {
+          pickupData: response.data.pickup,
+          immediatePickup: true,
+        });
+      } else {
+        Alert.alert('Error', response.message || 'Failed to create pickup request');
+      }
+    } catch (error) {
+      console.error('Error creating pickup request:', error);
+      Alert.alert('Error', 'Failed to create pickup request');
+    }
   };
 
   const handleProfile = () => {

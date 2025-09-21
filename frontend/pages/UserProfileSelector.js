@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, TextInput, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Button from '../components/Button';
+import { authService } from '../services/authService';
 
 export default function UserProfileSelector({ navigation }) {
   const [role, setRole] = useState('user');
@@ -32,7 +33,7 @@ export default function UserProfileSelector({ navigation }) {
     }
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     console.log('Login button pressed!', { username, password, role });
     
     // Basic validation
@@ -41,21 +42,25 @@ export default function UserProfileSelector({ navigation }) {
       return;
     }
 
-    // Simple authentication logic
-    if (role === 'user') {
-      if (username === 'user' && password === 'user123') {
-        console.log('User login successful');
-        navigation.replace('Main');
+    try {
+      // Convert username to email format for backend
+      const email = username.includes('@') ? username : `${username}@example.com`;
+      
+      const result = await authService.login(email, password);
+      
+      if (result.success) {
+        console.log(`${result.user.role} login successful`);
+        if (result.user.role === 'user') {
+          navigation.replace('Main');
+        } else {
+          navigation.replace('DeliveryMain');
+        }
       } else {
-        Alert.alert('Invalid Credentials', 'Try: user/user123');
+        Alert.alert('Login Failed', result.message || 'Invalid credentials');
       }
-    } else {
-      if (username === 'delivery' && password === 'delivery123') {
-        console.log('Delivery login successful');
-        navigation.replace('DeliveryMain');
-      } else {
-        Alert.alert('Invalid Credentials', 'Try: delivery/delivery123');
-      }
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Error', 'Login failed. Please try again.');
     }
   };
 

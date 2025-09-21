@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import Card from '../components/Card';
+import { userAPI, deliveryAPI } from '../services/apiService';
+import { authService } from '../services/authService';
 
 export default function DeliveryDashboard({ navigation }) {
   const [isOnline, setIsOnline] = useState(false);
-  const [completedPickups] = useState(12);
-  const [totalEarnings] = useState(2450);
+  const [user, setUser] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [availablePickups, setAvailablePickups] = useState([]);
   const [currentPickup, setCurrentPickup] = useState(null);
   const [pickupTimer, setPickupTimer] = useState(0);
-  const [ratings] = useState(5);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
 
   useEffect(() => {
     let interval;
@@ -26,48 +33,117 @@ export default function DeliveryDashboard({ navigation }) {
     return () => clearInterval(interval);
   }, [currentPickup, pickupTimer]);
 
-  const handleToggleOnline = () => {
-    setIsOnline(!isOnline);
-    if (!isOnline) {
-      // Simulate new pickup when going online
-      setTimeout(() => {
-        setCurrentPickup({
-          id: 1,
-          type: '1kg food boxes',
-          distance: '1km away from you',
-          time: '20s'
-        });
-        setPickupTimer(20);
-      }, 2000);
-    } else {
-      setCurrentPickup(null);
-      setPickupTimer(0);
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Get current user
+      const currentUser = await authService.getCurrentUser();
+      setUser(currentUser);
+      setIsOnline(currentUser?.isOnline || false);
+      
+      // Get dashboard data
+      const response = await userAPI.getDashboard();
+      
+      if (response.status === 'success') {
+        setDashboardData(response.data);
+        setAvailablePickups(response.data.availablePickups || []);
+      }
+    } catch (error) {
+      console.error('Error loading delivery dashboard:', error);
+      Alert.alert('Error', 'Failed to load dashboard data');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleAcceptPickup = () => {
-    Alert.alert('Pickup Accepted', 'You have accepted the pickup request!');
-    // Navigate to pickup accepted page
-    navigation.navigate('DeliveryPickupAccepted', {
-      pickupData: {
-        id: currentPickup.id,
-        type: currentPickup.type,
-        weight: '2.5kg',
-        items: ['Plastic bottles', 'Food containers', 'Packaging materials'],
-        earnings: 150,
-        customerName: 'John Doe',
-        customerPhone: '+91 98765 43210',
-        address: '123 Main Street, City, State 12345'
+  const handleToggleOnline = async () => {
+    try {
+      const newOnlineStatus = !isOnline;
+      
+      // Update online status in backend
+      await deliveryAPI.updateOnlineStatus(newOnlineStatus);
+      
+      setIsOnline(newOnlineStatus);
+      
+      if (newOnlineStatus) {
+        // Fetch available pickups when going online
+        const response = await deliveryAPI.getAvailablePickups();
+        if (response.status === 'success') {
+          setAvailablePickups(response.data.pickups || []);
+          
+          // If there are available pickups, show the first one
+          if (response.data.pickups && response.data.pickups.length > 0) {
+            const pickup = response.data.pickups[0];
+            setCurrentPickup({
+              id: pickup._id,
+              type: `${pickup.wasteDetails.foodBoxes || 0} food boxes, ${pickup.wasteDetails.bottles || 0} bottles`,
+              distance: `${pickup.distance || 0}km away from you`,
+              time: '20s',
+              pickup: pickup
+            });
+            setPickupTimer(20);
+          }
+        }
+      } else {
+        setCurrentPickup(null);
+        setPickupTimer(0);
+        setAvailablePickups([]);
       }
-    });
-    setCurrentPickup(null);
-    setPickupTimer(0);
+    } catch (error) {
+      console.error('Error toggling online status:', error);
+      Alert.alert('Error', 'Failed to update online status');
+    }
   };
 
-  const handleRejectPickup = () => {
-    Alert.alert('Pickup Rejected', 'You have rejected the pickup request.');
-    setCurrentPickup(null);
-    setPickupTimer(0);
+  const handleAcceptPickup = async () => {
+    try {
+      if (!currentPickup?.pickup) {
+        Alert.alert('Error', 'No pickup selected');
+        return;
+      }
+
+      // Accept pickup in backend
+      const response = await deliveryAPI.acceptPickup(currentPickup.pickup._id);
+      
+      if (response.status === 'success') {
+        Alert.alert('Pickup Accepted', 'You have accepted the pickup request!');
+        // Navigate to pickup accepted page
+        navigation.navigate('DeliveryPickupAccepted', {
+          pickupData: response.data.pickup
+        });
+        setCurrentPickup(null);
+        setPickupTimer(0);
+      } else {
+        Alert.alert('Error', response.message || 'Failed to accept pickup');
+      }
+    } catch (error) {
+      console.error('Error accepting pickup:', error);
+      Alert.alert('Error', 'Failed to accept pickup');
+    }
+  };
+
+  const handleRejectPickup = async () => {
+    try {
+      if (!currentPickup?.pickup) {
+        Alert.alert('Error', 'No pickup selected');
+        return;
+      }
+
+      // Reject pickup in backend
+      const response = await deliveryAPI.rejectPickup(currentPickup.pickup._id);
+      
+      if (response.status === 'success') {
+        Alert.alert('Pickup Rejected', 'You have rejected the pickup request.');
+        setCurrentPickup(null);
+        setPickupTimer(0);
+      } else {
+        Alert.alert('Error', response.message || 'Failed to reject pickup');
+      }
+    } catch (error) {
+      console.error('Error rejecting pickup:', error);
+      Alert.alert('Error', 'Failed to reject pickup');
+    }
   };
 
   const handleProfile = () => {
@@ -100,12 +176,12 @@ export default function DeliveryDashboard({ navigation }) {
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
             <Text style={styles.statLabel}>Pickup completed</Text>
-            <Text style={styles.statValue}>{completedPickups}</Text>
+            <Text style={styles.statValue}>{user?.completedPickups || 0}</Text>
           </View>
           <View style={styles.statBox}>
             <Text style={styles.statLabel}>You earned</Text>
             <Text style={styles.currencySymbol}>₹</Text>
-            <Text style={styles.statValue}>{totalEarnings}</Text>
+            <Text style={styles.statValue}>{user?.earnings?.total || 0}</Text>
           </View>
         </View>
 
@@ -133,7 +209,7 @@ export default function DeliveryDashboard({ navigation }) {
         <Card style={styles.ratingsCard}>
           <Text style={styles.ratingsTitle}>your ratings</Text>
           <View style={styles.ratingContainer}>
-            <Text style={styles.ratingValue}>{ratings}</Text>
+            <Text style={styles.ratingValue}>{user?.rating?.average?.toFixed(1) || '0.0'}</Text>
             <Text style={styles.starIcon}>⭐</Text>
           </View>
         </Card>

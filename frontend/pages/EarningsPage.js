@@ -1,25 +1,71 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import Button from '../components/Button';
+import { deliveryAPI } from '../services/apiService';
 
 export default function EarningsPage({ navigation }) {
-  const [earnings] = useState({
-    totalEarnings: 500,
-    lastOrderEarnings: 50,
+  const [earnings, setEarnings] = useState({
+    totalEarnings: 0,
+    availableEarnings: 0,
+    withdrawnEarnings: 0,
+    lastOrderEarnings: 0,
   });
+  const [earningsHistory, setEarningsHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleWithdraw = () => {
+  useEffect(() => {
+    loadEarningsData();
+  }, []);
+
+  const loadEarningsData = async () => {
+    try {
+      setLoading(true);
+      const response = await deliveryAPI.getEarnings();
+      
+      if (response.status === 'success') {
+        setEarnings(response.data.earnings);
+        setEarningsHistory(response.data.history || []);
+      }
+    } catch (error) {
+      console.error('Error loading earnings:', error);
+      Alert.alert('Error', 'Failed to load earnings data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (earnings.availableEarnings <= 0) {
+      Alert.alert('No Earnings', 'You have no available earnings to withdraw');
+      return;
+    }
+
     Alert.alert(
       'Withdraw Earnings',
-      `Are you sure you want to withdraw ₹${earnings.totalEarnings}?`,
+      `Are you sure you want to withdraw ₹${earnings.availableEarnings}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'Withdraw', 
           style: 'default',
-          onPress: () => {
-            Alert.alert('Success', 'Your withdrawal request has been submitted!');
-            navigation.goBack();
+          onPress: async () => {
+            try {
+              const response = await deliveryAPI.requestWithdrawal(
+                earnings.availableEarnings,
+                'bank_transfer',
+                { accountNumber: '1234567890', ifscCode: 'SBIN0001234' }
+              );
+              
+              if (response.status === 'success') {
+                Alert.alert('Success', 'Your withdrawal request has been submitted!');
+                loadEarningsData(); // Refresh data
+              } else {
+                Alert.alert('Error', response.message || 'Failed to submit withdrawal request');
+              }
+            } catch (error) {
+              console.error('Error requesting withdrawal:', error);
+              Alert.alert('Error', 'Failed to submit withdrawal request');
+            }
           }
         }
       ]
@@ -38,7 +84,7 @@ export default function EarningsPage({ navigation }) {
         <View style={styles.earningsCard}>
           <Text style={styles.earningsTitle}>Your Earnings!</Text>
           <View style={styles.divider} />
-          <Text style={styles.totalEarnings}>₹ {earnings.totalEarnings}</Text>
+          <Text style={styles.totalEarnings}>₹ {earnings.availableEarnings}</Text>
           
           <View style={styles.divider} />
           <View style={styles.lastOrderSection}>

@@ -1,21 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { pickupAPI } from '../services/apiService';
 
 export default function ScheduledPage({ navigation }) {
   const [activeTab, setActiveTab] = useState('upload');
-  
-  const liveSchedules = [
-    { id: 1, type: 'Plastic Waste', weight: '2.5kg', time: '10:00 AM', status: 'Pending' },
-    { id: 2, type: 'Food Waste', weight: '1.8kg', time: '2:00 PM', status: 'Confirmed' },
-  ];
+  const [liveSchedules, setLiveSchedules] = useState([]);
+  const [scheduledHistory, setScheduledHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const scheduledHistory = [
-    { id: 1, type: 'Mixed Waste', weight: '3.2kg', date: 'Jan 15, 2024', status: 'Completed' },
-    { id: 2, type: 'Plastic Bottles', weight: '1.5kg', date: 'Jan 14, 2024', status: 'Completed' },
-    { id: 3, type: 'Paper Waste', weight: '2.0kg', date: 'Jan 13, 2024', status: 'Completed' },
-    { id: 4, type: 'Food Waste', weight: '1.2kg', date: 'Jan 12, 2024', status: 'Completed' },
-    { id: 5, type: 'Glass Items', weight: '0.8kg', date: 'Jan 11, 2024', status: 'Completed' },
-  ];
+  useEffect(() => {
+    loadSchedules();
+  }, []);
+
+  const loadSchedules = async () => {
+    try {
+      setLoading(true);
+      
+      // Get live schedules (pending and accepted)
+      const liveResponse = await pickupAPI.getUserPickups('live');
+      if (liveResponse.status === 'success') {
+        setLiveSchedules(liveResponse.data.pickups || []);
+      }
+
+      // Get history (completed and rejected)
+      const historyResponse = await pickupAPI.getUserPickups('history');
+      if (historyResponse.status === 'success') {
+        setScheduledHistory(historyResponse.data.pickups || []);
+      }
+    } catch (error) {
+      console.error('Error loading schedules:', error);
+      Alert.alert('Error', 'Failed to load schedules');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleProfile = () => {
     navigation.navigate('Profile');

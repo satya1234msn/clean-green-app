@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import InputField from '../components/InputField';
 import Button from '../components/Button';
+import { authService } from '../services/authService';
 
 export default function UserSignup({ navigation }) {
   const [formData, setFormData] = useState({
@@ -19,21 +20,43 @@ export default function UserSignup({ navigation }) {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     // Basic validation
-    if (!formData.name || !formData.email || !formData.phone || !formData.address || !formData.password) {
-      alert('Please fill in all required fields');
+    if (!formData.name || !formData.email || !formData.phone || !formData.password) {
+      Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
     
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match');
+      Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
-    // In a real app, this would handle the signup process
-    alert('Account created successfully!');
-    navigation.replace('Main');
+    try {
+      const userData = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        role: 'user'
+      };
+
+      const result = await authService.register(userData);
+      
+      if (result.success) {
+        Alert.alert('Success', 'Account created successfully!', [
+          {
+            text: 'OK',
+            onPress: () => navigation.replace('Main')
+          }
+        ]);
+      } else {
+        Alert.alert('Registration Failed', result.message || 'Registration failed');
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      Alert.alert('Error', 'Registration failed. Please try again.');
+    }
   };
 
   const handleHelp = () => {

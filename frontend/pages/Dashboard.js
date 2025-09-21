@@ -1,39 +1,107 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
 import StatCard from '../components/StatCard';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import LineChart from '../components/LineChart';
 import { LinearGradient } from 'expo-linear-gradient';
+import { userAPI } from '../services/apiService';
+import { authService } from '../services/authService';
 
 const { width } = Dimensions.get('window');
 
 export default function Dashboard({ navigation }) {
-  const [currentAddress] = useState('123 Main St, City, State 12345');
+  const [currentAddress, setCurrentAddress] = useState('Loading...');
+  const [user, setUser] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
   
-  // placeholder data
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Get current user
+      const currentUser = await authService.getCurrentUser();
+      setUser(currentUser);
+      
+      // Get dashboard data
+      const response = await userAPI.getDashboard();
+      
+      if (response.status === 'success') {
+        setDashboardData(response.data);
+        
+        // Set current address
+        if (currentUser?.defaultAddress) {
+          setCurrentAddress(currentUser.defaultAddress.fullAddress || 'No address set');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading dashboard:', error);
+      Alert.alert('Error', 'Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Stats based on dashboard data
   const stats = [
-    { label: 'Submit', value: '24', icon: '📤', color: '#4CAF50' },
-    { label: 'Email', value: '24', icon: '📧', color: '#2196F3' },
+    { 
+      label: 'Total Pickups', 
+      value: dashboardData?.stats?.totalPickups?.toString() || '0', 
+      icon: '📤', 
+      color: '#4CAF50' 
+    },
+    { 
+      label: 'Total Points', 
+      value: dashboardData?.stats?.totalPoints?.toString() || '0', 
+      icon: '⭐', 
+      color: '#FF9800' 
+    },
   ];
 
+  // Recent contributions from dashboard data
   const recentContributions = [
-    { type: 'Accepted', status: 'upward', date: '2 days ago', points: '+150' },
-    { type: 'Rejected', status: 'downward', date: '1 week ago', points: '0' },
-  ];
+    dashboardData?.recentUploads?.accepted ? {
+      type: 'Accepted',
+      status: 'upward',
+      date: new Date(dashboardData.recentUploads.accepted.createdAt).toLocaleDateString(),
+      points: `+${dashboardData.recentUploads.accepted.points || 0}`
+    } : null,
+    dashboardData?.recentUploads?.rejected ? {
+      type: 'Rejected',
+      status: 'downward',
+      date: new Date(dashboardData.recentUploads.rejected.createdAt).toLocaleDateString(),
+      points: '0'
+    } : null
+  ].filter(Boolean);
 
-  const awardsReceived = [
-    { type: 'Awards', status: 'upward', title: 'Eco Warrior Badge', date: '2 days ago' },
-    { type: 'Received', status: 'upward', title: 'Green Champion', date: '1 week ago' },
-  ];
+  // Awards from dashboard data
+  const awardsReceived = dashboardData?.rewards?.map(reward => ({
+    type: 'Awards',
+    status: 'upward',
+    title: reward.title,
+    date: new Date(reward.issuedDate).toLocaleDateString()
+  })) || [];
 
-  const detailedHistory = [
-    { date: 'Jan 15, 2024', action: 'Submitted 2.5kg plastic waste', points: '+150', status: 'accepted' },
-    { date: 'Jan 12, 2024', action: 'Scheduled pickup', points: '+50', status: 'accepted' },
-    { date: 'Jan 10, 2024', action: 'Earned Eco Warrior badge', points: '+200', status: 'accepted' },
-    { date: 'Jan 8, 2024', action: 'Submitted 1.8kg plastic waste', points: '+120', status: 'accepted' },
-    { date: 'Jan 5, 2024', action: 'Submitted 3.2kg plastic waste', points: '+180', status: 'accepted' },
-  ];
+  // Detailed history from dashboard data
+  const detailedHistory = dashboardData?.recentUploads ? [
+    dashboardData.recentUploads.accepted ? {
+      date: new Date(dashboardData.recentUploads.accepted.createdAt).toLocaleDateString(),
+      action: `Submitted ${dashboardData.recentUploads.accepted.wasteType} waste`,
+      points: `+${dashboardData.recentUploads.accepted.points || 0}`,
+      status: 'accepted'
+    } : null,
+    dashboardData.recentUploads.rejected ? {
+      date: new Date(dashboardData.recentUploads.rejected.createdAt).toLocaleDateString(),
+      action: `Submitted ${dashboardData.recentUploads.rejected.wasteType} waste`,
+      points: '0',
+      status: 'rejected'
+    } : null
+  ].filter(Boolean) : [];
 
   const handleUpload = () => {
     navigation.navigate('WasteUploadNew');
@@ -56,7 +124,8 @@ export default function Dashboard({ navigation }) {
   };
 
   const handleMoreHistory = () => {
-    alert('View more history feature coming soon!');
+    // Navigate to a detailed history page or show more history
+    Alert.alert('History', 'Detailed history feature coming soon!');
   };
 
   return (

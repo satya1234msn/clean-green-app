@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { pickupAPI } from '../services/apiService';
 
 export default function SchedulePickupPage({ navigation, route }) {
-  const { wasteType, foodBoxes, bottles, otherItems, images } = route.params || {};
+  const { wasteType, foodBoxes, bottles, otherItems, images, address } = route.params || {};
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const timeSlots = [
     '10:00 to 11:00',
@@ -13,29 +15,70 @@ export default function SchedulePickupPage({ navigation, route }) {
     '6:00pm to 8:00pm',
   ];
 
-  const handleSchedule = () => {
+  const handleSchedule = async () => {
     if (!selectedTimeSlot) {
       Alert.alert('Error', 'Please select a time slot');
       return;
     }
-    
-    Alert.alert(
-      'Schedule Confirmed',
-      `Your pickup is scheduled for ${selectedTimeSlot}`,
-      [
-        {
-          text: 'OK',
-          onPress: () => navigation.navigate('AfterScheduling', {
-            wasteType,
-            foodBoxes,
-            bottles,
-            otherItems,
-            images,
-            scheduledTime: selectedTimeSlot
-          })
-        }
-      ]
-    );
+    if (!selectedDate) {
+      Alert.alert('Error', 'Please select a date');
+      return;
+    }
+    if (!address) {
+      Alert.alert('Error', 'Address is required to schedule pickup');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const wasteDetails = {};
+      if (wasteType === 'food') {
+        wasteDetails.foodBoxes = foodBoxes;
+      } else if (wasteType === 'bottles') {
+        wasteDetails.bottles = bottles;
+      } else if (wasteType === 'other') {
+        wasteDetails.otherItems = otherItems;
+      }
+
+      const scheduledDateISO = new Date(selectedDate).toISOString();
+
+      const pickupData = {
+        address: address._id,
+        wasteType,
+        wasteDetails,
+        images,
+        priority: 'scheduled',
+        scheduledDate: scheduledDateISO,
+        scheduledTime: selectedTimeSlot,
+      };
+
+      const response = await pickupAPI.createPickup(pickupData);
+
+      setLoading(false);
+
+      Alert.alert(
+        'Schedule Confirmed',
+        `Your pickup is scheduled for ${selectedTimeSlot}`,
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.navigate('AfterScheduling', {
+              wasteType,
+              foodBoxes,
+              bottles,
+              otherItems,
+              images,
+              scheduledTime: selectedTimeSlot,
+              pickupId: response.data.pickup._id,
+            }),
+          },
+        ]
+      );
+    } catch (error) {
+      setLoading(false);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to schedule pickup');
+    }
   };
 
   const handleHome = () => {
@@ -57,9 +100,12 @@ export default function SchedulePickupPage({ navigation, route }) {
         {/* Choose Day Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>choose day</Text>
-          <TouchableOpacity style={styles.inputContainer}>
+          <TouchableOpacity style={styles.inputContainer} onPress={() => {
+            // TODO: Implement date picker modal
+            Alert.alert('Info', 'Date picker not implemented yet');
+          }}>
             <Text style={styles.calendarIcon}>📅</Text>
-            <Text style={styles.datePlaceholder}>DD/MM/YY</Text>
+            <Text style={styles.datePlaceholder}>{selectedDate || 'DD/MM/YY'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -88,8 +134,12 @@ export default function SchedulePickupPage({ navigation, route }) {
         </View>
 
         {/* Schedule Button */}
-        <TouchableOpacity style={styles.scheduleButton} onPress={handleSchedule}>
-          <Text style={styles.scheduleButtonText}>Schedule it!</Text>
+        <TouchableOpacity style={styles.scheduleButton} onPress={handleSchedule} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.scheduleButtonText}>Schedule it!</Text>
+          )}
         </TouchableOpacity>
 
         {/* Navigation Buttons */}
