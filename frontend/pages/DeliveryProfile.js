@@ -1,251 +1,517 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Card from '../components/Card';
-import Button from '../components/Button';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { userAPI } from '../services/apiService';
+import { authService } from '../services/authService';
 
 export default function DeliveryProfile({ navigation }) {
-  const [profile] = useState({
-    name: 'John Delivery',
-    email: 'john.delivery@cleangreen.com',
-    phone: '+91 98765 43210',
-    vehicleType: 'Bike',
-    licenseNumber: '****1490',
-    totalPickups: 5,
-    rating: 5,
-    status: 'Active'
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    vehicleType: '',
+    licenseNumber: '',
   });
 
-  const handleEditProfile = () => {
-    Alert.alert('Edit Profile', 'Profile editing feature coming soon!');
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      setLoading(true);
+      const currentUser = await authService.getCurrentUser();
+      if (currentUser) {
+        setUser(currentUser);
+        setFormData({
+          name: currentUser.name || '',
+          email: currentUser.email || '',
+          phone: currentUser.phone || '',
+          vehicleType: currentUser.vehicleType || '',
+          licenseNumber: currentUser.licenseNumber || '',
+        });
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      Alert.alert('Error', 'Failed to load profile');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleChangePassword = () => {
-    Alert.alert('Change Password', 'Password change feature coming soon!');
+  const handleSaveProfile = async () => {
+    try {
+      if (!formData.name.trim() || !formData.email.trim() || !formData.phone.trim()) {
+        Alert.alert('Error', 'Please fill all required fields');
+        return;
+      }
+
+      setLoading(true);
+
+      const updateData = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        vehicleType: formData.vehicleType.trim(),
+        licenseNumber: formData.licenseNumber.trim(),
+      };
+
+      const response = await userAPI.updateProfile(updateData);
+
+      if (response.status === 'success') {
+        setUser(response.data.user);
+        setEditing(false);
+        Alert.alert('Success', 'Profile updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleLogout = () => {
+  const handleCancel = () => {
+    setFormData({
+      name: user?.name || '',
+      email: user?.email || '',
+      phone: user?.phone || '',
+      vehicleType: user?.vehicleType || '',
+      licenseNumber: user?.licenseNumber || '',
+    });
+    setEditing(false);
+  };
+
+  const handleLogout = async () => {
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
+        {
+          text: 'Logout',
           style: 'destructive',
-          onPress: () => navigation.replace('UserProfileSelector')
-        }
+          onPress: async () => {
+            try {
+              await authService.logout();
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'UserProfileSelector' }],
+              });
+            } catch (error) {
+              console.error('Logout error:', error);
+            }
+          },
+        },
       ]
     );
   };
 
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
+  const handleEarnings = () => {
+    navigation.navigate('DeliveryEarnings');
+  };
+
+  if (loading && !user) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text>Loading profile...</Text>
+      </View>
+    );
+  }
+
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
+        <TouchableOpacity onPress={handleBack}>
+          <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>YOUR PROFILE</Text>
-        <View style={styles.placeholder} />
+        <Text style={styles.headerTitle}>My Profile</Text>
+        <TouchableOpacity
+          onPress={editing ? handleSaveProfile : () => setEditing(true)}
+          disabled={loading}
+        >
+          <Text style={[styles.editText, loading && styles.disabledText]}>
+            {editing ? 'Save' : 'Edit'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.content}>
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.profileHeader}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>DP</Text>
-            </View>
-            <Text style={styles.userName}>{profile.name}</Text>
+      <ScrollView style={styles.content}>
+        {/* Profile Header */}
+        <View style={styles.profileHeader}>
+          <View style={styles.avatarContainer}>
+            <Text style={styles.avatarText}>
+              {formData.name.charAt(0).toUpperCase()}
+            </Text>
           </View>
-          
-          <View style={styles.profileInfo}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Email:</Text>
-              <Text style={styles.infoValue}>{profile.email}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>ph no:</Text>
-              <Text style={styles.infoValue}>{profile.phone}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>vehicle type</Text>
-              <Text style={styles.infoValue}>{profile.vehicleType}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Licence:</Text>
-              <Text style={styles.infoValue}>{profile.licenseNumber} no</Text>
-            </View>
-          </View>
-
-          <View style={styles.performanceSection}>
-            <Text style={styles.performanceText}>pickups done till now: {profile.totalPickups}</Text>
-            <View style={styles.ratingContainer}>
-              <Text style={styles.ratingText}>Your Rating: {profile.rating}</Text>
-              <Text style={styles.starIcon}>⭐</Text>
-            </View>
-          </View>
-
+          <Text style={styles.profileName}>{formData.name}</Text>
+          <Text style={styles.profileRole}>Delivery Executive</Text>
         </View>
 
-        {/* Instructions */}
-        <View style={styles.instructionsContainer}>
-          <Text style={styles.instructionsIcon}>ⓘ</Text>
-          <Text style={styles.instructionsText}>instructions</Text>
-        </View>
+        {/* Form Fields */}
+        <View style={styles.formContainer}>
+          {/* Name */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Full Name</Text>
+            <TextInput
+              style={[styles.input, !editing && styles.disabledInput]}
+              value={formData.name}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
+              editable={editing}
+              placeholder="Enter your full name"
+            />
+          </View>
 
-        {/* Logout Button */}
-        <View style={styles.logoutContainer}>
-          <Button 
-            title="Logout" 
-            onPress={handleLogout} 
-            variant="secondary"
-            style={styles.logoutButton}
-          />
+          {/* Email */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={[styles.input, styles.disabledInput]}
+              value={formData.email}
+              editable={false}
+              placeholder="Enter your email"
+            />
+            <Text style={styles.helpText}>Email cannot be changed</Text>
+          </View>
+
+          {/* Phone */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Phone Number</Text>
+            <TextInput
+              style={[styles.input, !editing && styles.disabledInput]}
+              value={formData.phone}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
+              editable={editing}
+              placeholder="Enter your phone number"
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          {/* Vehicle Type */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Vehicle Type</Text>
+            <TextInput
+              style={[styles.input, !editing && styles.disabledInput]}
+              value={formData.vehicleType}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, vehicleType: text }))}
+              editable={editing}
+              placeholder="e.g., Bike, Scooter, Car"
+            />
+          </View>
+
+          {/* License Number */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>License Number</Text>
+            <TextInput
+              style={[styles.input, !editing && styles.disabledInput]}
+              value={formData.licenseNumber}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, licenseNumber: text }))}
+              editable={editing}
+              placeholder="Enter your license number"
+            />
+          </View>
+
+          {/* User Stats */}
+          {user && (
+            <View style={styles.statsContainer}>
+              <Text style={styles.sectionTitle}>Your Stats</Text>
+
+              <View style={styles.statRow}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{user.completedPickups || 0}</Text>
+                  <Text style={styles.statLabel}>Pickups Completed</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>₹{user.earnings?.total || 0}</Text>
+                  <Text style={styles.statLabel}>Total Earnings</Text>
+                </View>
+              </View>
+
+              <View style={styles.statRow}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>
+                    {user.rating?.average ? user.rating.average.toFixed(1) : 'N/A'}
+                  </Text>
+                  <Text style={styles.statLabel}>Rating</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{user.totalHours || 0}h</Text>
+                  <Text style={styles.statLabel}>Hours Online</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Action Buttons */}
+          {editing && (
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[styles.button, styles.cancelButton]}
+                onPress={handleCancel}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.button, styles.saveButton]}
+                onPress={handleSaveProfile}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Menu Options */}
+          {!editing && (
+            <View style={styles.menuContainer}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={handleEarnings}
+              >
+                <Text style={styles.menuText}>💰 View Earnings</Text>
+                <Text style={styles.menuArrow}>→</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => navigation.navigate('Support')}
+              >
+                <Text style={styles.menuText}>💬 Support</Text>
+                <Text style={styles.menuArrow}>→</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.menuItem, styles.logoutItem]}
+                onPress={handleLogout}
+              >
+                <Text style={[styles.menuText, styles.logoutText]}>🚪 Logout</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F8E9',
+    backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingVertical: 15,
     backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  backButton: {
-    padding: 8,
-  },
-  backButtonText: {
+  backText: {
     fontSize: 16,
-    color: '#00C897',
-    fontWeight: '600',
+    color: '#4CAF50',
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#222',
+    fontWeight: '600',
+    color: '#333',
   },
-  placeholder: {
-    width: 60,
+  editText: {
+    fontSize: 16,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  disabledText: {
+    color: '#ccc',
   },
   content: {
-    padding: 20,
-  },
-  profileCard: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    flex: 1,
   },
   profileHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 30,
+    backgroundColor: '#fff',
     marginBottom: 20,
   },
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#00C897',
+  avatarContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#4CAF50',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginBottom: 15,
   },
   avatarText: {
-    fontSize: 20,
-    fontWeight: '800',
     color: '#fff',
+    fontSize: 40,
+    fontWeight: '600',
   },
-  userName: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#222',
+  profileName: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 5,
   },
-  profileInfo: {
+  profileRole: {
+    fontSize: 16,
+    color: '#666',
+  },
+  formContainer: {
+    padding: 20,
+  },
+  inputGroup: {
     marginBottom: 20,
   },
-  infoRow: {
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 14,
+  },
+  disabledInput: {
+    backgroundColor: '#f5f5f5',
+    color: '#666',
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 5,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 15,
+  },
+  statsContainer: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 8,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 15,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#4CAF50',
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 5,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 30,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  cancelButton: {
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  saveButton: {
+    backgroundColor: '#4CAF50',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  menuContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  menuItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  infoLabel: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
-  },
-  infoValue: {
-    fontSize: 16,
-    color: '#222',
-    fontWeight: '600',
-  },
-  performanceSection: {
-    marginBottom: 20,
-  },
-  performanceText: {
-    fontSize: 16,
-    color: '#222',
-    marginBottom: 10,
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  ratingText: {
-    fontSize: 16,
-    color: '#222',
-    marginRight: 8,
-  },
-  starIcon: {
-    fontSize: 16,
-  },
-  backButtonBottom: {
-    backgroundColor: '#00C897',
-    paddingVertical: 12,
+    paddingVertical: 15,
     paddingHorizontal: 20,
-    borderRadius: 8,
-    alignSelf: 'flex-end',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  instructionsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
+  logoutItem: {
+    borderBottomWidth: 0,
   },
-  instructionsIcon: {
-    fontSize: 20,
-    color: '#00C897',
-    marginRight: 8,
-  },
-  instructionsText: {
+  menuText: {
     fontSize: 16,
+    color: '#333',
+  },
+  logoutText: {
+    color: '#f44336',
+  },
+  menuArrow: {
+    fontSize: 18,
     color: '#666',
-    fontWeight: '500',
-  },
-  logoutContainer: {
-    marginBottom: 20,
-  },
-  logoutButton: {
-    width: '100%',
   },
 });
-

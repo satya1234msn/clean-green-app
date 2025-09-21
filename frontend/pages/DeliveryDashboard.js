@@ -3,35 +3,77 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import Card from '../components/Card';
 import { userAPI, pickupAPI } from '../services/apiService';
 import { authService } from '../services/authService';
+import notificationService from '../services/notificationService';
 
 export default function DeliveryDashboard({ navigation }) {
   const [isOnline, setIsOnline] = useState(false);
   const [user, setUser] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
-  const [availablePickups, setAvailablePickups] = useState([]);
-  const [currentPickup, setCurrentPickup] = useState(null);
-  const [pickupTimer, setPickupTimer] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     loadDashboardData();
+    setupNotifications();
+
+    return () => {
+      notificationService.disconnect();
+    };
   }, []);
 
-  useEffect(() => {
-    let interval;
-    if (currentPickup && pickupTimer > 0) {
-      interval = setInterval(() => {
-        setPickupTimer(prev => {
-          if (prev <= 1) {
-            setCurrentPickup(null);
-            return 0;
-          }
-          return prev - 1;
+  const setupNotifications = async () => {
+    try {
+      const currentUser = await authService.getCurrentUser();
+      if (currentUser) {
+        // Initialize socket connection
+        notificationService.init(currentUser._id);
+
+        // Join user room for notifications
+        notificationService.joinUserRoom(currentUser._id);
+
+        // Listen for pickup requests
+        notificationService.onPickupRequest((data) => {
+          Alert.alert(
+            'New Pickup Request',
+            `You have a new pickup request from ${data.distance} away`,
+            [
+              { text: 'View Details', onPress: () => handleViewPickup(data) },
+              { text: 'Later', style: 'cancel' }
+            ]
+          );
         });
-      }, 1000);
+
+        // Listen for new pickups available
+        notificationService.onNewPickupAvailable((data) => {
+          Alert.alert(
+            'New Pickup Available',
+            'A new pickup is available in your area',
+            [
+              { text: 'Check Now', onPress: () => loadDashboardData() },
+              { text: 'Later', style: 'cancel' }
+            ]
+          );
+        });
+
+        // Listen for earnings updates
+        notificationService.onEarningsUpdate((data) => {
+          Alert.alert(
+            'Earnings Updated',
+            `Your earnings have been updated: ₹${data.amount}`,
+            [{ text: 'OK' }]
+          );
+        });
+      }
+    } catch (error) {
+      console.error('Error setting up notifications:', error);
     }
-    return () => clearInterval(interval);
-  }, [currentPickup, pickupTimer]);
+  };
+
+  const handleViewPickup = (pickupData) => {
+    // Navigate to pickup details or show pickup card
+    console.log('Viewing pickup:', pickupData);
+    // You can implement navigation to pickup details here
+  };
 
   const loadDashboardData = async () => {
     try {
@@ -47,7 +89,6 @@ export default function DeliveryDashboard({ navigation }) {
 
       if (response.status === 'success') {
         setDashboardData(response.data);
-        setAvailablePickups(response.data.availablePickups || []);
       }
     } catch (error) {
       console.error('Error loading delivery dashboard:', error);
@@ -61,34 +102,19 @@ export default function DeliveryDashboard({ navigation }) {
     try {
       const newOnlineStatus = !isOnline;
 
-      // Update online status in backend using userAPI instead of deliveryAPI
+      // Update online status in backend
       await userAPI.updateOnlineStatus(newOnlineStatus);
 
       setIsOnline(newOnlineStatus);
 
       if (newOnlineStatus) {
-        // Fetch available pickups when going online
-        const response = await pickupAPI.getAvailablePickups();
-        if (response.status === 'success') {
-          setAvailablePickups(response.data.pickups || []);
-
-          // If there are available pickups, show the first one
-          if (response.data.pickups && response.data.pickups.length > 0) {
-            const pickup = response.data.pickups[0];
-            setCurrentPickup({
-              id: pickup._id,
-              type: `${pickup.wasteDetails.foodBoxes || 0} food boxes, ${pickup.wasteDetails.bottles || 0} bottles`,
-              distance: `${pickup.distance || 0}km away from you`,
-              time: '20s',
-              pickup: pickup
-            });
-            setPickupTimer(20);
-          }
+        // Join delivery room when going online
+        if (user) {
+          notificationService.joinDeliveryRoom(user._id);
         }
+        Alert.alert('Online', 'You are now online and will receive pickup notifications');
       } else {
-        setCurrentPickup(null);
-        setPickupTimer(0);
-        setAvailablePickups([]);
+        Alert.alert('Offline', 'You are now offline');
       }
     } catch (error) {
       console.error('Error toggling online status:', error);
@@ -96,58 +122,12 @@ export default function DeliveryDashboard({ navigation }) {
     }
   };
 
-  const handleAcceptPickup = async () => {
-    try {
-      if (!currentPickup?.pickup) {
-        Alert.alert('Error', 'No pickup selected');
-        return;
-      }
-
-      // Accept pickup in backend
-      const response = await pickupAPI.acceptPickup(currentPickup.pickup._id);
-
-      if (response.status === 'success') {
-        Alert.alert('Pickup Accepted', 'You have accepted the pickup request!');
-        // Navigate to pickup accepted page
-        navigation.navigate('DeliveryPickupAccepted', {
-          pickupData: response.data.pickup
-        });
-        setCurrentPickup(null);
-        setPickupTimer(0);
-      } else {
-        Alert.alert('Error', response.message || 'Failed to accept pickup');
-      }
-    } catch (error) {
-      console.error('Error accepting pickup:', error);
-      Alert.alert('Error', 'Failed to accept pickup');
-    }
-  };
-
-  const handleRejectPickup = async () => {
-    try {
-      if (!currentPickup?.pickup) {
-        Alert.alert('Error', 'No pickup selected');
-        return;
-      }
-
-      // Reject pickup in backend
-      const response = await pickupAPI.rejectPickup(currentPickup.pickup._id);
-
-      if (response.status === 'success') {
-        Alert.alert('Pickup Rejected', 'You have rejected the pickup request.');
-        setCurrentPickup(null);
-        setPickupTimer(0);
-      } else {
-        Alert.alert('Error', response.message || 'Failed to reject pickup');
-      }
-    } catch (error) {
-      console.error('Error rejecting pickup:', error);
-      Alert.alert('Error', 'Failed to reject pickup');
-    }
-  };
-
   const handleProfile = () => {
     navigation.navigate('DeliveryProfile');
+  };
+
+  const handleEarnings = () => {
+    navigation.navigate('DeliveryEarnings');
   };
 
   const handleSupport = () => {
@@ -172,56 +152,104 @@ export default function DeliveryDashboard({ navigation }) {
       </View>
 
       <View style={styles.content}>
+        {/* Welcome Section */}
+        <View style={styles.welcomeSection}>
+          <Text style={styles.welcomeTitle}>Welcome back!</Text>
+          <Text style={styles.welcomeSubtitle}>
+            {user?.name ? `${user.name}, ready for your next pickup?` : 'Ready for your next pickup?'}
+          </Text>
+          <View style={styles.statusIndicator}>
+            <View style={[styles.statusDot, { backgroundColor: isOnline ? '#4CAF50' : '#f44336' }]} />
+            <Text style={styles.statusText}>
+              {isOnline ? 'Online - Receiving notifications' : 'Offline'}
+            </Text>
+          </View>
+        </View>
+
         {/* Stats Row */}
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Pickup completed</Text>
+            <Text style={styles.statLabel}>Pickups Completed</Text>
             <Text style={styles.statValue}>{user?.completedPickups || 0}</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>You earned</Text>
+            <Text style={styles.statLabel}>Total Earnings</Text>
             <Text style={styles.currencySymbol}>₹</Text>
             <Text style={styles.statValue}>{user?.earnings?.total || 0}</Text>
           </View>
         </View>
 
-        {/* Fetching Pickups */}
-        {currentPickup && (
-          <Card style={styles.pickupCard}>
-            <Text style={styles.pickupTitle}>fetching Pickups:</Text>
-            <View style={styles.pickupDetails}>
-              <Text style={styles.pickupType}>{currentPickup.type}</Text>
-              <Text style={styles.pickupDistance}>{currentPickup.distance}</Text>
-            </View>
-            <View style={styles.pickupActions}>
-              <TouchableOpacity style={styles.rejectButton} onPress={handleRejectPickup}>
-                <Text style={styles.actionButtonText}>✕</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.acceptButton} onPress={handleAcceptPickup}>
-                <Text style={styles.actionButtonText}>✓</Text>
-              </TouchableOpacity>
-              <Text style={styles.timerText}>{pickupTimer}s</Text>
-            </View>
-          </Card>
-        )}
-
-        {/* Ratings */}
-        <Card style={styles.ratingsCard}>
-          <Text style={styles.ratingsTitle}>your ratings</Text>
-          <View style={styles.ratingContainer}>
-            <Text style={styles.ratingValue}>{user?.rating?.average?.toFixed(1) || '0.0'}</Text>
-            <Text style={styles.starIcon}>⭐</Text>
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleEarnings}>
+              <Text style={styles.actionButtonIcon}>💰</Text>
+              <Text style={styles.actionButtonText}>View Earnings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={handleProfile}>
+              <Text style={styles.actionButtonIcon}>👤</Text>
+              <Text style={styles.actionButtonText}>My Profile</Text>
+            </TouchableOpacity>
           </View>
-        </Card>
+        </View>
+
+        {/* Today's Summary */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Today's Summary</Text>
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Status:</Text>
+              <Text style={[styles.summaryValue, { color: isOnline ? '#4CAF50' : '#f44336' }]}>
+                {isOnline ? 'Online' : 'Offline'}
+              </Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Today's Pickups:</Text>
+              <Text style={styles.summaryValue}>{dashboardData?.todayPickups || 0}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Today's Earnings:</Text>
+              <Text style={styles.summaryValue}>₹{dashboardData?.todayEarnings || 0}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Performance */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Performance</Text>
+          <View style={styles.performanceCard}>
+            <View style={styles.ratingContainer}>
+              <Text style={styles.ratingValue}>{user?.rating?.average?.toFixed(1) || '0.0'}</Text>
+              <Text style={styles.starIcon}>⭐</Text>
+            </View>
+            <Text style={styles.ratingLabel}>Average Rating</Text>
+            <Text style={styles.ratingSubtext}>
+              Based on {user?.rating?.total || 0} customer reviews
+            </Text>
+          </View>
+        </View>
+
+        {/* Notification Status */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notifications</Text>
+          <View style={styles.notificationCard}>
+            <Text style={styles.notificationIcon}>🔔</Text>
+            <Text style={styles.notificationText}>
+              {isOnline
+                ? 'You will receive real-time notifications for new pickup requests'
+                : 'Go online to receive pickup notifications'
+              }
+            </Text>
+          </View>
+        </View>
 
         {/* Support */}
-        <View style={styles.supportContainer}>
+        <View style={styles.section}>
           <TouchableOpacity style={styles.supportButton} onPress={handleSupport}>
-            <Text style={styles.supportButtonText}>Support</Text>
+            <Text style={styles.supportButtonIcon}>💬</Text>
+            <Text style={styles.supportButtonText}>Need Help? Contact Support</Text>
           </TouchableOpacity>
-          <Text style={styles.safetyMessage}>
-            We ensure Safety for our Pickup executives!
-          </Text>
         </View>
       </View>
     </ScrollView>
@@ -280,10 +308,38 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  welcomeSection: {
+    marginBottom: 25,
+  },
+  welcomeTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 8,
+  },
+  welcomeSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 10,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  statusText: {
+    fontSize: 14,
+    color: '#666',
+  },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 25,
   },
   statBox: {
     backgroundColor: '#fff',
@@ -316,103 +372,148 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     marginRight: 4,
   },
-  pickupCard: {
-    marginBottom: 20,
-    backgroundColor: '#fff',
+  section: {
+    marginBottom: 25,
   },
-  pickupTitle: {
+  sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: 12,
-  },
-  pickupDetails: {
-    marginBottom: 16,
-  },
-  pickupType: {
-    fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 4,
+    marginBottom: 15,
   },
-  pickupDistance: {
-    fontSize: 14,
-    color: '#666',
-  },
-  pickupActions: {
+  actionButtons: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  rejectButton: {
-    backgroundColor: '#f44336',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+  actionButton: {
+    backgroundColor: '#fff',
+    width: '48%',
+    padding: 20,
+    borderRadius: 8,
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
   },
-  acceptButton: {
-    backgroundColor: '#4CAF50',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+  actionButtonIcon: {
+    fontSize: 30,
+    marginBottom: 8,
   },
   actionButtonText: {
-    color: '#fff',
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
   },
-  timerText: {
+  summaryCard: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  summaryLabel: {
+    fontSize: 16,
+    color: '#666',
+  },
+  summaryValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FF5722',
-  },
-  ratingsCard: {
-    marginBottom: 20,
-    backgroundColor: '#fff',
-  },
-  ratingsTitle: {
-    fontSize: 18,
-    fontWeight: '700',
     color: '#333',
-    marginBottom: 12,
+  },
+  performanceCard: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 10,
   },
   ratingValue: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: '800',
     color: '#4CAF50',
     marginRight: 8,
   },
   starIcon: {
-    fontSize: 20,
+    fontSize: 24,
   },
-  supportContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  supportButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-    marginBottom: 12,
-  },
-  supportButtonText: {
-    color: '#fff',
+  ratingLabel: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
   },
-  safetyMessage: {
+  ratingSubtext: {
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
-    fontStyle: 'italic',
+  },
+  notificationCard: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  notificationIcon: {
+    fontSize: 24,
+    marginRight: 15,
+  },
+  notificationText: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
+    lineHeight: 20,
+  },
+  supportButton: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  supportButtonIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  supportButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
   },
 });

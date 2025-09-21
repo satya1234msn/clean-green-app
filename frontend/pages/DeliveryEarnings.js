@@ -1,122 +1,157 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import Card from '../components/Card';
-import StatCard from '../components/StatCard';
+import { userAPI } from '../services/apiService';
+import { authService } from '../services/authService';
 
 export default function DeliveryEarnings({ navigation }) {
-  const [earnings] = useState([
-    { id: '1', date: '2024-01-15', pickups: 8, amount: 120, status: 'Paid' },
-    { id: '2', date: '2024-01-14', pickups: 6, amount: 90, status: 'Paid' },
-    { id: '3', date: '2024-01-13', pickups: 10, amount: 150, status: 'Paid' },
-    { id: '4', date: '2024-01-12', pickups: 7, amount: 105, status: 'Pending' },
-    { id: '5', date: '2024-01-11', pickups: 9, amount: 135, status: 'Paid' },
-  ]);
+  const [user, setUser] = useState(null);
+  const [earningsData, setEarningsData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const totalEarnings = earnings.reduce((sum, earning) => sum + earning.amount, 0);
-  const totalPickups = earnings.reduce((sum, earning) => sum + earning.pickups, 0);
-  const pendingAmount = earnings.filter(e => e.status === 'Pending').reduce((sum, earning) => sum + earning.amount, 0);
+  useEffect(() => {
+    loadEarningsData();
+  }, []);
 
-  const handleWithdraw = () => {
-    // In a real app, this would open a withdrawal form
-    alert('Withdrawal feature coming soon!');
+  const loadEarningsData = async () => {
+    try {
+      setLoading(true);
+
+      // Get current user
+      const currentUser = await authService.getCurrentUser();
+      setUser(currentUser);
+
+      // Get earnings data
+      const response = await userAPI.getDashboard();
+
+      if (response.status === 'success') {
+        setEarningsData(response.data);
+      }
+    } catch (error) {
+      console.error('Error loading earnings:', error);
+      Alert.alert('Error', 'Failed to load earnings data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
+  const handleProfile = () => {
+    navigation.navigate('DeliveryProfile');
   };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
-      <LinearGradient colors={['#00C897', '#006C67']} style={styles.header}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.headerTitle}>Earnings 💰</Text>
-            <Text style={styles.headerSubtitle}>Track your income</Text>
-          </View>
-        </View>
-      </LinearGradient>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={handleBack}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>My Earnings</Text>
+        <TouchableOpacity style={styles.profileIcon} onPress={handleProfile}>
+          <Text style={styles.profileIconText}>👤</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.content}>
-        {/* Summary Cards */}
-        <View style={styles.summaryCards}>
-          <StatCard 
-            title="Total Earnings" 
-            value={`$${totalEarnings}`} 
-            icon="💰"
-            color="#28A745"
-          />
-          <StatCard 
-            title="This Week" 
-            value="$465" 
-            icon="📅"
-            color="#00C897"
-          />
-          <StatCard 
-            title="Total Pickups" 
-            value={totalPickups.toString()} 
-            icon="📦"
-            color="#FFB703"
-          />
-          <StatCard 
-            title="Pending" 
-            value={`$${pendingAmount}`} 
-            icon="⏳"
-            color="#FF6B6B"
-          />
+        {/* Total Earnings Card */}
+        <View style={styles.totalEarningsCard}>
+          <Text style={styles.totalEarningsLabel}>Total Earnings</Text>
+          <Text style={styles.totalEarningsAmount}>
+            ₹{user?.earnings?.total || 0}
+          </Text>
+          <Text style={styles.totalEarningsSubtext}>
+            From {user?.completedPickups || 0} completed pickups
+          </Text>
         </View>
 
-        {/* Withdraw Section */}
-        <Card style={styles.withdrawCard}>
-          <Text style={styles.sectionTitle}>Available Balance</Text>
-          <Text style={styles.balanceAmount}>${totalEarnings - pendingAmount}</Text>
-          <Text style={styles.balanceSubtext}>Ready for withdrawal</Text>
-          <TouchableOpacity style={styles.withdrawButton} onPress={handleWithdraw}>
-            <Text style={styles.withdrawButtonText}>Withdraw Funds</Text>
-          </TouchableOpacity>
-        </Card>
-
-        {/* Earnings History */}
-        <Card style={styles.historyCard}>
-          <Text style={styles.sectionTitle}>Earnings History</Text>
-          {earnings.map((earning) => (
-            <View key={earning.id} style={styles.earningItem}>
-              <View style={styles.earningInfo}>
-                <Text style={styles.earningDate}>{earning.date}</Text>
-                <Text style={styles.earningPickups}>{earning.pickups} pickups</Text>
-              </View>
-              <View style={styles.earningAmount}>
-                <Text style={styles.amountValue}>${earning.amount}</Text>
-                <View style={[
-                  styles.statusBadge, 
-                  { backgroundColor: earning.status === 'Paid' ? '#28A745' : '#FFB703' }
-                ]}>
-                  <Text style={styles.statusText}>{earning.status}</Text>
-                </View>
-              </View>
+        {/* Today's Earnings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Today's Earnings</Text>
+          <View style={styles.earningsCard}>
+            <View style={styles.earningsRow}>
+              <Text style={styles.earningsLabel}>Pickups Completed:</Text>
+              <Text style={styles.earningsValue}>{earningsData?.todayPickups || 0}</Text>
             </View>
-          ))}
-        </Card>
+            <View style={styles.earningsRow}>
+              <Text style={styles.earningsLabel}>Amount Earned:</Text>
+              <Text style={styles.earningsValue}>₹{earningsData?.todayEarnings || 0}</Text>
+            </View>
+          </View>
+        </View>
 
-        {/* Payment Info */}
-        <Card style={styles.paymentCard}>
+        {/* This Week's Earnings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>This Week's Earnings</Text>
+          <View style={styles.earningsCard}>
+            <View style={styles.earningsRow}>
+              <Text style={styles.earningsLabel}>Pickups Completed:</Text>
+              <Text style={styles.earningsValue}>{earningsData?.weekPickups || 0}</Text>
+            </View>
+            <View style={styles.earningsRow}>
+              <Text style={styles.earningsLabel}>Amount Earned:</Text>
+              <Text style={styles.earningsValue}>₹{earningsData?.weekEarnings || 0}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* This Month's Earnings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>This Month's Earnings</Text>
+          <View style={styles.earningsCard}>
+            <View style={styles.earningsRow}>
+              <Text style={styles.earningsLabel}>Pickups Completed:</Text>
+              <Text style={styles.earningsValue}>{earningsData?.monthPickups || 0}</Text>
+            </View>
+            <View style={styles.earningsRow}>
+              <Text style={styles.earningsLabel}>Amount Earned:</Text>
+              <Text style={styles.earningsValue}>₹{earningsData?.monthEarnings || 0}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Earnings Breakdown */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Earnings Breakdown</Text>
+          <View style={styles.breakdownCard}>
+            <View style={styles.breakdownRow}>
+              <Text style={styles.breakdownLabel}>Base Rate per Pickup:</Text>
+              <Text style={styles.breakdownValue}>₹50</Text>
+            </View>
+            <View style={styles.breakdownRow}>
+              <Text style={styles.breakdownLabel}>Distance Bonus:</Text>
+              <Text style={styles.breakdownValue}>₹20</Text>
+            </View>
+            <View style={styles.breakdownRow}>
+              <Text style={styles.breakdownLabel}>Performance Bonus:</Text>
+              <Text style={styles.breakdownValue}>₹10</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.breakdownRow}>
+              <Text style={styles.breakdownTotalLabel}>Total per Pickup:</Text>
+              <Text style={styles.breakdownTotalValue}>₹80</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Payment Information */}
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment Information</Text>
-          <View style={styles.paymentItem}>
-            <Text style={styles.paymentLabel}>Payment Method:</Text>
-            <Text style={styles.paymentValue}>Bank Transfer</Text>
+          <View style={styles.paymentCard}>
+            <Text style={styles.paymentInfo}>
+              💳 Payments are processed weekly and transferred to your registered bank account
+            </Text>
+            <Text style={styles.paymentInfo}>
+              📅 Next payment: Every Friday
+            </Text>
+            <Text style={styles.paymentInfo}>
+              🏦 Minimum payout: ₹500
+            </Text>
           </View>
-          <View style={styles.paymentItem}>
-            <Text style={styles.paymentLabel}>Account:</Text>
-            <Text style={styles.paymentValue}>****1234</Text>
-          </View>
-          <View style={styles.paymentItem}>
-            <Text style={styles.paymentLabel}>Next Payment:</Text>
-            <Text style={styles.paymentValue}>Every Friday</Text>
-          </View>
-          <TouchableOpacity style={styles.editPaymentButton}>
-            <Text style={styles.editPaymentText}>Edit Payment Info</Text>
-          </TouchableOpacity>
-        </Card>
+        </View>
       </View>
     </ScrollView>
   );
@@ -125,157 +160,161 @@ export default function DeliveryEarnings({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9F9F9',
+    backgroundColor: '#f5f5f5',
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-  },
-  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  backButton: {
-    marginRight: 16,
-  },
-  backButtonText: {
+  backText: {
     fontSize: 16,
-    color: '#fff',
-    fontWeight: '600',
+    color: '#4CAF50',
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 4,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
   },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#E8FFFC',
-    fontWeight: '500',
+  profileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileIconText: {
+    fontSize: 18,
+    color: '#333',
   },
   content: {
+    flex: 1,
     padding: 20,
-    paddingTop: 20,
   },
-  summaryCards: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 20,
+  totalEarningsCard: {
+    backgroundColor: '#4CAF50',
+    padding: 25,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 25,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  totalEarningsLabel: {
+    fontSize: 16,
+    color: '#fff',
+    marginBottom: 8,
+  },
+  totalEarningsAmount: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  totalEarningsSubtext: {
+    fontSize: 14,
+    color: '#e8f5e8',
+    textAlign: 'center',
+  },
+  section: {
+    marginBottom: 25,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#222',
-    marginBottom: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 15,
   },
-  withdrawCard: {
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingVertical: 24,
+  earningsCard: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  balanceAmount: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: '#28A745',
-    marginBottom: 8,
-  },
-  balanceSubtext: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 20,
-  },
-  withdrawButton: {
-    backgroundColor: '#28A745',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 25,
-  },
-  withdrawButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  historyCard: {
-    marginBottom: 20,
-  },
-  earningItem: {
+  earningsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#f0f0f0',
   },
-  earningInfo: {
-    flex: 1,
+  earningsLabel: {
+    fontSize: 16,
+    color: '#666',
   },
-  earningDate: {
+  earningsValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#222',
-    marginBottom: 4,
+    color: '#4CAF50',
   },
-  earningPickups: {
+  breakdownCard: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  breakdownLabel: {
     fontSize: 14,
     color: '#666',
   },
-  earningAmount: {
-    alignItems: 'flex-end',
-  },
-  amountValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#28A745',
-    marginBottom: 4,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
+  breakdownValue: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: '#333',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 12,
+  },
+  breakdownTotalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  breakdownTotalValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4CAF50',
   },
   paymentCard: {
-    marginBottom: 20,
-  },
-  paymentItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  paymentLabel: {
-    fontSize: 16,
-    color: '#666',
-  },
-  paymentValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#222',
-  },
-  editPaymentButton: {
-    marginTop: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#fff',
+    padding: 20,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E9ECEF',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  editPaymentText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#006C67',
+  paymentInfo: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+    lineHeight: 20,
   },
 });
-

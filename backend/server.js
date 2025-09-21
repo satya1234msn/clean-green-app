@@ -7,6 +7,9 @@ const { createServer } = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config({ path: './config.env' });
 
+// Import configuration
+const config = require('./config');
+
 // Import routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -18,10 +21,16 @@ const uploadRoutes = require('./routes/uploads');
 
 const app = express();
 const server = createServer(app);
+
+// Get current environment configuration
+const currentEnv = config.getCurrentEnv();
+const envConfig = config.getEnvVars(currentEnv);
+
 const io = new Server(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"]
+    origin: envConfig.FRONTEND_URLS,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
   }
 });
 
@@ -39,23 +48,17 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// CORS configuration - Allow all origins in development
+// CORS configuration using config
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
-    
-    // In development, allow all origins
-    if (process.env.NODE_ENV === 'development') {
+
+    // Check against allowed origins from config
+    if (envConfig.FRONTEND_URLS.includes(origin) || envConfig.FRONTEND_URLS.includes('*')) {
       return callback(null, true);
     }
-    
-    // In production, check against allowed origins
-    const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [];
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    
+
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true
@@ -74,7 +77,7 @@ app.use((req, res, next) => {
 });
 
 // Database connection with better error handling
-const mongoUri = process.env.MONGODB_URI;
+const mongoUri = process.env.MONGODB_URI || envConfig.DATABASE.URL;
 if (!mongoUri) {
   console.error('❌ MONGODB_URI environment variable is not set!');
   process.exit(1);
@@ -93,17 +96,17 @@ mongoose.connect(mongoUri, {
 // Socket.IO for real-time notifications
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
-  
+
   socket.on('join-delivery-room', (deliveryId) => {
     socket.join(`delivery-${deliveryId}`);
     console.log(`Delivery agent ${deliveryId} joined room`);
   });
-  
+
   socket.on('join-user-room', (userId) => {
     socket.join(`user-${userId}`);
     console.log(`User ${userId} joined room`);
   });
-  
+
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });
@@ -130,7 +133,10 @@ app.get('/api/health', (req, res) => {
     status: 'success',
     message: 'CleanGreen API is running',
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '1.0.0',
+    environment: currentEnv,
+    server: config.getServerURL(),
+    apiBase: config.getAPIBaseURL()
   });
 });
 
@@ -145,7 +151,7 @@ app.use('*', (req, res) => {
 // Global error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  
+
   // Mongoose validation error
   if (err.name === 'ValidationError') {
     const errors = Object.values(err.errors).map(e => e.message);
@@ -155,7 +161,7 @@ app.use((err, req, res, next) => {
       errors
     });
   }
-  
+
   // Mongoose duplicate key error
   if (err.code === 11000) {
     const field = Object.keys(err.keyValue);
@@ -164,7 +170,7 @@ app.use((err, req, res, next) => {
       message: `${field} already exists`
     });
   }
-  
+
   // JWT errors
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
@@ -172,14 +178,14 @@ app.use((err, req, res, next) => {
       message: 'Invalid token'
     });
   }
-  
+
   if (err.name === 'TokenExpiredError') {
     return res.status(401).json({
       status: 'error',
       message: 'Token expired'
     });
   }
-  
+
   // Default error response
   res.status(err.status || 500).json({
     status: 'error',
@@ -188,14 +194,15 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
-const HOST = '0.0.0.0'; // Bind to all interfaces
+const PORT = process.env.PORT || envConfig.SERVER.PORT;
+const HOST = process.env.HOST || envConfig.SERVER.HOST;
 
 server.listen(PORT, HOST, () => {
-  console.log(`🚀 Server running on http://${HOST}:${PORT}`);
-  console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🌐 API accessible at: http://192.168.29.56:${PORT}/api`);
-  console.log(`🏥 Health check: http://192.168.29.56:${PORT}/api/health`);
+  console.log(`🚀 Server running on ${config.getServerURL()}`);
+  console.log(`📱 Environment: ${currentEnv}`);
+  console.log(`🌐 API accessible at: ${config.getAPIBaseURL()}`);
+  console.log(`🏥 Health check: ${config.getServerURL()}/api/health`);
+  console.log(`📋 Allowed origins: ${envConfig.FRONTEND_URLS.join(', ')}`);
 });
 
 // Handle unhandled promise rejections
