@@ -5,7 +5,7 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import LineChart from '../components/LineChart';
 import { LinearGradient } from 'expo-linear-gradient';
-import { userAPI } from '../services/apiService';
+import { userAPI, addressAPI } from '../services/apiService';
 import { authService } from '../services/authService';
 
 const { width } = Dimensions.get('window');
@@ -14,6 +14,7 @@ export default function Dashboard({ navigation }) {
   const [currentAddress, setCurrentAddress] = useState('Loading...');
   const [user, setUser] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
+  const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,10 +34,22 @@ export default function Dashboard({ navigation }) {
 
       if (response.status === 'success') {
         setDashboardData(response.data);
+      }
 
-        // Set current address
-        if (currentUser?.defaultAddress) {
-          setCurrentAddress(currentUser.defaultAddress.fullAddress || 'No address set');
+      // Get user addresses
+      const addressesResponse = await addressAPI.getAddresses();
+      if (addressesResponse.status === 'success') {
+        setAddresses(addressesResponse.data);
+
+        // Find default address
+        const defaultAddr = addressesResponse.data.find(addr => addr.isDefault);
+        if (defaultAddr) {
+          setCurrentAddress(defaultAddr.fullAddress || 'No address set');
+        } else if (addressesResponse.data.length > 0) {
+          // If no default, use first address
+          setCurrentAddress(addressesResponse.data[0].fullAddress || 'No address set');
+        } else {
+          setCurrentAddress('No address set');
         }
       }
     } catch (error) {

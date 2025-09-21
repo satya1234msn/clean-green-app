@@ -199,12 +199,6 @@ export default function DeliveryDashboard({ navigation }) {
           <Text style={styles.sectionTitle}>Today's Summary</Text>
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Status:</Text>
-              <Text style={[styles.summaryValue, { color: isOnline ? '#4CAF50' : '#f44336' }]}>
-                {isOnline ? 'Online' : 'Offline'}
-              </Text>
-            </View>
-            <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Today's Pickups:</Text>
               <Text style={styles.summaryValue}>{dashboardData?.todayPickups || 0}</Text>
             </View>

@@ -1,7 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import DeliveryDashboard from '../pages/DeliveryDashboard';
-import DeliveryPickups from '../pages/DeliveryPickups';
 import DeliveryEarnings from '../pages/DeliveryEarnings';
 import DeliveryProfile from '../pages/DeliveryProfile';
 import { Text } from 'react-native';
@@ -18,7 +17,6 @@ export default function DeliveryTabNavigator() {
         tabBarIcon: ({ color, size }) => {
           const icons = {
             DeliveryDashboard: 'dashboard',
-            DeliveryPickups: 'assignment',
             DeliveryEarnings: 'attach-money',
             DeliveryProfile: 'person'
           };
@@ -28,10 +26,8 @@ export default function DeliveryTabNavigator() {
       initialRouteName="DeliveryDashboard"
     >
       <Tab.Screen name="DeliveryDashboard" component={DeliveryDashboard} options={{ title: 'Dashboard' }} />
-      <Tab.Screen name="DeliveryPickups" component={DeliveryPickups} options={{ title: 'Pickups' }} />
       <Tab.Screen name="DeliveryEarnings" component={DeliveryEarnings} options={{ title: 'Earnings' }} />
       <Tab.Screen name="DeliveryProfile" component={DeliveryProfile} options={{ title: 'Profile' }} />
     </Tab.Navigator>
   );
 }
-

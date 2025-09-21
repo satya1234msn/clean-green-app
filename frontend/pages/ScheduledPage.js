@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'rea
 import { pickupAPI } from '../services/apiService';
 
 export default function ScheduledPage({ navigation }) {
-  const [activeTab, setActiveTab] = useState('upload');
+  const [activeTab, setActiveTab] = useState('scheduled');
   const [liveSchedules, setLiveSchedules] = useState([]);
   const [scheduledHistory, setScheduledHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,7 +15,7 @@ export default function ScheduledPage({ navigation }) {
   const loadSchedules = async () => {
     try {
       setLoading(true);
-      
+
       // Get live schedules (pending and accepted)
       const liveResponse = await pickupAPI.getUserPickups('live');
       if (liveResponse.status === 'success') {
@@ -55,16 +55,8 @@ export default function ScheduledPage({ navigation }) {
           <Text style={styles.profileIconText}>👤</Text>
         </TouchableOpacity>
         <View style={styles.tabContainer}>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'upload' && styles.activeTab]} 
-            onPress={() => setActiveTab('upload')}
-          >
-            <Text style={[styles.tabText, activeTab === 'upload' && styles.activeTabText]}>
-              upload page
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'scheduled' && styles.activeTab]} 
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'scheduled' && styles.activeTab]}
             onPress={() => setActiveTab('scheduled')}
           >
             <Text style={[styles.tabText, activeTab === 'scheduled' && styles.activeTabText]}>
@@ -75,131 +67,72 @@ export default function ScheduledPage({ navigation }) {
       </View>
 
       <View style={styles.content}>
-        {activeTab === 'upload' ? (
-          /* Upload Page Content */
-          <View style={styles.uploadContent}>
-            <View style={styles.uploadHeader}>
-              <Text style={styles.uploadTitle}>Upload Your Waste</Text>
-              <Text style={styles.uploadSubtitle}>Help us keep the environment clean</Text>
-            </View>
-            
-            {/* Stock Market Style Graph */}
-            <View style={styles.graphSection}>
-              <Text style={styles.graphTitle}>Waste Collection Trends</Text>
-              <View style={styles.stockGraph}>
-                <View style={styles.graphContainer}>
-                  <View style={styles.yAxis}>
-                    <Text style={styles.yLabel}>100</Text>
-                    <Text style={styles.yLabel}>80</Text>
-                    <Text style={styles.yLabel}>60</Text>
-                    <Text style={styles.yLabel}>40</Text>
-                    <Text style={styles.yLabel}>20</Text>
-                    <Text style={styles.yLabel}>0</Text>
-                  </View>
-                  <View style={styles.chartArea}>
-                    <View style={styles.candlestickChart}>
-                      {/* Candlestick bars */}
-                      <View style={[styles.candlestick, styles.bullish, { height: 60, marginLeft: 10 }]}>
-                        <View style={styles.candlestickBody}></View>
-                        <View style={styles.candlestickWick}></View>
-                      </View>
-                      <View style={[styles.candlestick, styles.bearish, { height: 40, marginLeft: 30 }]}>
-                        <View style={styles.candlestickBody}></View>
-                        <View style={styles.candlestickWick}></View>
-                      </View>
-                      <View style={[styles.candlestick, styles.bullish, { height: 80, marginLeft: 50 }]}>
-                        <View style={styles.candlestickBody}></View>
-                        <View style={styles.candlestickWick}></View>
-                      </View>
-                      <View style={[styles.candlestick, styles.bearish, { height: 30, marginLeft: 70 }]}>
-                        <View style={styles.candlestickBody}></View>
-                        <View style={styles.candlestickWick}></View>
-                      </View>
-                      <View style={[styles.candlestick, styles.bullish, { height: 70, marginLeft: 90 }]}>
-                        <View style={styles.candlestickBody}></View>
-                        <View style={styles.candlestickWick}></View>
-                      </View>
-                    </View>
-                    <View style={styles.xAxis}>
-                      <Text style={styles.xLabel}>Jan</Text>
-                      <Text style={styles.xLabel}>Feb</Text>
-                      <Text style={styles.xLabel}>Mar</Text>
-                      <Text style={styles.xLabel}>Apr</Text>
-                      <Text style={styles.xLabel}>May</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* Upload Actions */}
-            <View style={styles.uploadActions}>
-              <TouchableOpacity 
-                style={styles.uploadButton}
-                onPress={() => navigation.navigate('WasteUploadNew')}
-              >
-                <Text style={styles.uploadButtonText}>📤 Upload Waste</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.scheduleButton}
-                onPress={() => setActiveTab('scheduled')}
-              >
-                <Text style={styles.scheduleButtonText}>📅 View Schedule</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          /* Live Schedules Section */
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Live schedules</Text>
-            {liveSchedules.map((schedule) => (
-              <View key={schedule.id} style={styles.scheduleCard}>
+        {/* Live Schedules Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Live schedules</Text>
+          {loading ? (
+            <Text style={styles.loadingText}>Loading schedules...</Text>
+          ) : liveSchedules.length > 0 ? (
+            liveSchedules.map((schedule) => (
+              <View key={schedule._id || schedule.id} style={styles.scheduleCard}>
                 <View style={styles.scheduleInfo}>
-                  <Text style={styles.scheduleType}>{schedule.type}</Text>
-                  <Text style={styles.scheduleWeight}>Weight: {schedule.weight}</Text>
-                  <Text style={styles.scheduleTime}>Time: {schedule.time}</Text>
+                  <Text style={styles.scheduleType}>{schedule.wasteType || schedule.type}</Text>
+                  <Text style={styles.scheduleWeight}>Weight: {schedule.weight} kg</Text>
+                  <Text style={styles.scheduleTime}>
+                    {schedule.scheduledDate ? new Date(schedule.scheduledDate).toLocaleDateString() : schedule.time}
+                  </Text>
                   <View style={[
                     styles.statusBadge,
-                    { backgroundColor: schedule.status === 'Confirmed' ? '#4CAF50' : '#FF5722' }
+                    { backgroundColor: schedule.status === 'Confirmed' || schedule.status === 'accepted' ? '#4CAF50' : '#FF5722' }
                   ]}>
-                    <Text style={styles.statusText}>{schedule.status}</Text>
+                    <Text style={styles.statusText}>{schedule.status || 'Pending'}</Text>
                   </View>
                 </View>
-                <TouchableOpacity 
-                  style={styles.viewButton} 
+                <TouchableOpacity
+                  style={styles.viewButton}
                   onPress={() => handleViewSchedule(schedule)}
                 >
                   <Text style={styles.viewButtonText}>view</Text>
                 </TouchableOpacity>
               </View>
-            ))}
-          </View>
-        )}
+            ))
+          ) : (
+            <Text style={styles.emptyText}>No live schedules found</Text>
+          )}
+        </View>
 
         {/* Scheduled History Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Scheduled history</Text>
-          <View style={styles.historyContainer}>
-            {scheduledHistory.map((history) => (
-              <TouchableOpacity 
-                key={history.id} 
-                style={styles.historyItem}
-                onPress={() => handleViewHistory(history)}
-              >
-                <View style={styles.historyInfo}>
-                  <Text style={styles.historyType}>{history.type}</Text>
-                  <Text style={styles.historyWeight}>{history.weight}</Text>
-                  <Text style={styles.historyDate}>{history.date}</Text>
-                </View>
-                <View style={[
-                  styles.historyStatus,
-                  { backgroundColor: history.status === 'Completed' ? '#4CAF50' : '#FF5722' }
-                ]}>
-                  <Text style={styles.historyStatusText}>{history.status}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {loading ? (
+            <Text style={styles.loadingText}>Loading history...</Text>
+          ) : scheduledHistory.length > 0 ? (
+            <View style={styles.historyContainer}>
+              {scheduledHistory.map((history) => (
+                <TouchableOpacity
+                  key={history._id || history.id}
+                  style={styles.historyItem}
+                  onPress={() => handleViewHistory(history)}
+                >
+                  <View style={styles.historyInfo}>
+                    <Text style={styles.historyType}>{history.wasteType || history.type}</Text>
+                    <Text style={styles.historyWeight}>{history.weight} kg</Text>
+                    <Text style={styles.historyDate}>
+                      {history.scheduledDate ? new Date(history.scheduledDate).toLocaleDateString() : history.date}
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.historyStatus,
+                    { backgroundColor: history.status === 'Completed' || history.status === 'completed' ? '#4CAF50' : '#FF5722' }
+                  ]}>
+                    <Text style={styles.historyStatusText}>{history.status || 'Unknown'}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>No history found</Text>
+          )}
         </View>
       </View>
 
@@ -276,6 +209,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1B5E20',
     marginBottom: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    padding: 20,
+    fontStyle: 'italic',
   },
   scheduleCard: {
     backgroundColor: '#fff',
@@ -388,138 +334,4 @@ const styles = StyleSheet.create({
     color: '#666',
     fontStyle: 'italic',
   },
-  // Upload Page Styles
-  uploadContent: {
-    flex: 1,
-  },
-  uploadHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  uploadTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#1B5E20',
-    marginBottom: 8,
-  },
-  uploadSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  graphSection: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  graphTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1B5E20',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  stockGraph: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
-    padding: 16,
-  },
-  graphContainer: {
-    flexDirection: 'row',
-    height: 200,
-  },
-  yAxis: {
-    width: 30,
-    justifyContent: 'space-between',
-    paddingRight: 8,
-  },
-  yLabel: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'right',
-  },
-  chartArea: {
-    flex: 1,
-    position: 'relative',
-  },
-  candlestickChart: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    height: 160,
-    paddingBottom: 20,
-  },
-  candlestick: {
-    width: 12,
-    position: 'relative',
-  },
-  candlestickBody: {
-    width: 12,
-    borderRadius: 2,
-    position: 'absolute',
-    bottom: 0,
-  },
-  candlestickWick: {
-    width: 2,
-    backgroundColor: '#333',
-    position: 'absolute',
-    left: 5,
-  },
-  bullish: {
-    backgroundColor: '#4CAF50',
-  },
-  bearish: {
-    backgroundColor: '#F44336',
-  },
-  xAxis: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 8,
-  },
-  xLabel: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-  },
-  uploadActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  uploadButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    flex: 1,
-    marginRight: 8,
-    alignItems: 'center',
-  },
-  uploadButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  scheduleButton: {
-    backgroundColor: '#E8F5E9',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    flex: 1,
-    marginLeft: 8,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#4CAF50',
-  },
-  scheduleButtonText: {
-    color: '#4CAF50',
-    fontSize: 16,
-    fontWeight: '600',
-  },
 });
-

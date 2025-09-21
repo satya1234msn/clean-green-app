@@ -1,23 +1,102 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import InputField from '../components/InputField';
 import Button from '../components/Button';
+import { authService } from '../services/authService';
 
 export default function Login({ navigation }) {
   const [tab, setTab] = useState('login');
   const [role, setRole] = useState('user');
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    name: '',
+    phone: ''
+  });
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (role === 'user') {
-      navigation.replace('Main');
-    } else {
-      navigation.replace('DeliveryMain');
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleLogin = async () => {
+    if (!formData.email || !formData.password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const loginData = {
+        email: formData.email,
+        password: formData.password,
+        role: role
+      };
+
+      const response = await authService.login(loginData);
+
+      if (response.success) {
+        if (role === 'user') {
+          navigation.replace('Main');
+        } else {
+          navigation.replace('DeliveryMain');
+        }
+      } else {
+        Alert.alert('Login Failed', response.message || 'Invalid credentials');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Error', 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSignup = () => {
-    navigation.navigate('UserSignup');
+  const handleSignup = async () => {
+    if (!formData.name || !formData.email || !formData.password || !formData.phone) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const signupData = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone,
+        role: role
+      };
+
+      const response = await authService.register(signupData);
+
+      if (response.success) {
+        Alert.alert('Success', 'Account created successfully! Please login.');
+        setTab('login');
+      } else {
+        Alert.alert('Registration Failed', response.message || 'Failed to create account');
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      Alert.alert('Error', 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const switchRole = (newRole) => {
+    setRole(newRole);
+    // Clear form when switching roles
+    setFormData({
+      email: '',
+      password: '',
+      name: '',
+      phone: ''
+    });
   };
 
   return (
@@ -36,15 +115,15 @@ export default function Login({ navigation }) {
       <View style={styles.content}>
         {/* Role Selection */}
         <View style={styles.roleSelector}>
-          <TouchableOpacity 
-            style={[styles.roleTab, role === 'user' && styles.activeRoleTab]} 
-            onPress={() => setRole('user')}
+          <TouchableOpacity
+            style={[styles.roleTab, role === 'user' && styles.activeRoleTab]}
+            onPress={() => switchRole('user')}
           >
             <Text style={[styles.roleTabText, role === 'user' && styles.activeRoleTabText]}>User</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.roleTab, role === 'delivery' && styles.activeRoleTab]} 
-            onPress={() => setRole('delivery')}
+          <TouchableOpacity
+            style={[styles.roleTab, role === 'delivery' && styles.activeRoleTab]}
+            onPress={() => switchRole('delivery')}
           >
             <Text style={[styles.roleTabText, role === 'delivery' && styles.activeRoleTabText]}>Delivery Agent</Text>
           </TouchableOpacity>
@@ -63,21 +142,27 @@ export default function Login({ navigation }) {
 
           {tab === 'login' ? (
             <View style={styles.form}>
-              <InputField 
-                label="Username" 
-                placeholder="Enter your username"
+              <InputField
+                label="Email"
+                placeholder="Enter your email"
+                value={formData.email}
+                onChangeText={(value) => handleInputChange('email', value)}
+                keyboardType="email-address"
                 style={styles.inputField}
               />
-              <InputField 
-                label="Password" 
-                secureTextEntry 
+              <InputField
+                label="Password"
+                secureTextEntry
                 placeholder="Enter your password"
+                value={formData.password}
+                onChangeText={(value) => handleInputChange('password', value)}
                 style={styles.inputField}
               />
-              <Button 
-                title="Login" 
-                onPress={handleLogin} 
+              <Button
+                title={loading ? "Logging in..." : "Login"}
+                onPress={handleLogin}
                 style={styles.loginButton}
+                disabled={loading}
               />
               <TouchableOpacity onPress={() => alert('Forgot password flow placeholder')} style={styles.forgotPassword}>
                 <Text style={styles.forgotPasswordText}>Forgot password?</Text>
@@ -85,33 +170,42 @@ export default function Login({ navigation }) {
             </View>
           ) : (
             <View style={styles.form}>
-              <InputField 
-                label="Full Name" 
+              <InputField
+                label="Full Name"
                 placeholder="Enter your full name"
+                value={formData.name}
+                onChangeText={(value) => handleInputChange('name', value)}
                 style={styles.inputField}
               />
-              <InputField 
-                label="Email" 
+              <InputField
+                label="Email"
                 keyboardType="email-address"
                 placeholder="Enter your email"
+                value={formData.email}
+                onChangeText={(value) => handleInputChange('email', value)}
                 style={styles.inputField}
               />
-              <InputField 
-                label="Phone" 
+              <InputField
+                label="Phone"
                 keyboardType="phone-pad"
                 placeholder="Enter your phone number"
+                value={formData.phone}
+                onChangeText={(value) => handleInputChange('phone', value)}
                 style={styles.inputField}
               />
-              <InputField 
-                label="Password" 
-                secureTextEntry 
+              <InputField
+                label="Password"
+                secureTextEntry
                 placeholder="Create a password"
+                value={formData.password}
+                onChangeText={(value) => handleInputChange('password', value)}
                 style={styles.inputField}
               />
-              <Button 
-                title="Create Account" 
-                onPress={handleSignup} 
+              <Button
+                title={loading ? "Creating Account..." : "Create Account"}
+                onPress={handleSignup}
                 style={styles.registerButton}
+                disabled={loading}
               />
             </View>
           )}
@@ -133,8 +227,8 @@ export default function Login({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
+  container: {
+    flex: 1,
     backgroundColor: '#E8F5E9', // Light Green background
   },
   header: {
@@ -221,25 +315,25 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  tabRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
+  tabRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     marginBottom: 24,
     backgroundColor: '#fff',
     borderRadius: 25,
     padding: 4,
   },
-  tab: { 
-    marginHorizontal: 20, 
-    fontSize: 16, 
-    color: '#666', 
+  tab: {
+    marginHorizontal: 20,
+    fontSize: 16,
+    color: '#666',
     paddingBottom: 6,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
-  activeTab: { 
-    color: '#fff', 
+  activeTab: {
+    color: '#fff',
     backgroundColor: '#4CAF50', // Primary Green
   },
   form: {

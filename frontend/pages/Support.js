@@ -35,14 +35,14 @@ export default function Support({ navigation }) {
           <Text style={styles.supportMessage}>
             reviewing your issue our executive will contact you which one will you prefer
           </Text>
-          
+
           {/* Contact Options */}
           <View style={styles.contactOptions}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
-                styles.contactButton, 
+                styles.contactButton,
                 selectedContact === 'message' && styles.selectedContact
-              ]} 
+              ]}
               onPress={handleMessage}
             >
               <Text style={[
@@ -52,12 +52,12 @@ export default function Support({ navigation }) {
                 Message
               </Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={[
-                styles.contactButton, 
+                styles.contactButton,
                 selectedContact === 'call' && styles.selectedContact
-              ]} 
+              ]}
               onPress={handleCall}
             >
               <Text style={[
@@ -109,7 +109,7 @@ export default function Support({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F8E9', // Very light green background
+    backgroundColor: '#f5f5f5',
   },
   header: {
     paddingTop: 60,
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#1B5E20',
+    color: '#333',
     textAlign: 'center',
   },
   content: {
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   },
   supportMessage: {
     fontSize: 16,
-    color: '#1B5E20',
+    color: '#333',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 24,
@@ -155,12 +155,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
   },
   contactButton: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#f0f0f0',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: '#C8E6C9',
+    borderColor: '#e0e0e0',
   },
   selectedContact: {
     backgroundColor: '#4CAF50',
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
   contactButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1B5E20',
+    color: '#333',
   },
   selectedContactText: {
     color: '#fff',
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1B5E20',
+    color: '#333',
     marginBottom: 12,
   },
   infoText: {
@@ -197,20 +197,25 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   responseCard: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   responseTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1B5E20',
+    color: '#333',
     marginBottom: 8,
   },
   responseText: {
     fontSize: 14,
-    color: '#2E7D32',
+    color: '#666',
     lineHeight: 20,
   },
   navigationButtons: {
