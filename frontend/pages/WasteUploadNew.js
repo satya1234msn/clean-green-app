@@ -207,9 +207,15 @@ export default function WasteUploadNew({ navigation }) {
             {
               text: 'OK',
               onPress: () => {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'TabNavigator', params: { screen: 'Dashboard' } }],
+                navigation.navigate('AfterScheduling', {
+                  wasteType,
+                  foodBoxes: wasteDetails.foodBoxes,
+                  bottles: wasteDetails.bottles,
+                  otherItems: wasteDetails.otherItems,
+                  images: uploadedImages,
+                  immediatePickup: priority === 'now',
+                  address: selectedAddress,
+                  estimatedWeight: parseFloat(estimatedWeight) || 1,
                 });
               },
             },
