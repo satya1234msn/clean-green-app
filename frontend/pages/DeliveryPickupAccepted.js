@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { pickupAPI } from '../services/apiService';
 import RealMap from '../components/RealMap';
 
 export default function DeliveryPickupAccepted({ navigation, route }) {
@@ -28,22 +29,30 @@ export default function DeliveryPickupAccepted({ navigation, route }) {
     });
   };
 
-  const handleReached = () => {
-    setPickupStatus('reached');
-    setShowPickedButton(true);
-    setShowReachedButton(false); // Hide the reached button
-    Alert.alert('Status Updated', 'You have marked as reached the pickup location!');
+  const handleReached = async () => {
+    try {
+      await pickupAPI.updatePickupStatus(pickupData?._id, 'in_progress', null, 'Agent reached pickup');
+      setPickupStatus('reached');
+      setShowPickedButton(true);
+      setShowReachedButton(false);
+      Alert.alert('Status Updated', 'You have marked as reached the pickup location!');
+    } catch (e) {
+      Alert.alert('Error', 'Failed to update status');
+    }
   };
 
-  const handlePicked = () => {
-    setPickupStatus('picked');
-    Alert.alert('Pickup Completed', `You have successfully picked up the waste and earned ₹${pickupDetails.earnings}!`);
-    // Navigate to warehouse navigation after a short delay
-    setTimeout(() => {
+  const handlePicked = async () => {
+    try {
+      // Keep status in_progress while moving to warehouse
+      await pickupAPI.updatePickupStatus(pickupData?._id, 'in_progress', null, 'Waste picked, en route to warehouse');
+      setPickupStatus('picked');
+      Alert.alert('Pickup Updated', 'Proceed to warehouse for submission.');
       navigation.navigate('WarehouseNavigation', {
-        pickupData: pickupDetails
+        pickupData: { ...pickupDetails, _id: pickupData?._id }
       });
-    }, 1500);
+    } catch (e) {
+      Alert.alert('Error', 'Failed to update status');
+    }
   };
 
   const handleSupport = () => {

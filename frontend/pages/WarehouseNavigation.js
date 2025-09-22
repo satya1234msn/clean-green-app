@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { getDirections, getFallbackDirections } from '../services/mapsService';
+import { pickupAPI } from '../services/apiService';
 
 export default function WarehouseNavigation({ navigation, route }) {
   const { pickupData } = route.params || {};
@@ -81,16 +82,28 @@ export default function WarehouseNavigation({ navigation, route }) {
     Alert.alert('Open Maps', 'Opening route to warehouse in device maps app...');
   };
 
-  const handleReached = () => {
-    setHasReached(true);
-    setShowSubmittedButton(true);
-    setShowReachedButton(false); // Hide the reached button
-    Alert.alert('Status Updated', 'You have reached the warehouse!');
+  const handleReached = async () => {
+    try {
+      await pickupAPI.updatePickupStatus(pickupData?._id, 'in_progress', null, 'Reached warehouse');
+      setHasReached(true);
+      setShowSubmittedButton(true);
+      setShowReachedButton(false);
+      Alert.alert('Status Updated', 'You have reached the warehouse!');
+    } catch (e) {
+      Alert.alert('Error', 'Failed to update status');
+    }
   };
 
-  const handleSubmittedWaste = () => {
-    Alert.alert('Waste Submitted', 'Waste successfully submitted to warehouse! Returning to dashboard...');
-    navigation.navigate('DeliveryMain');
+  const handleSubmittedWaste = async () => {
+    try {
+      // Use calculated/fallback distance as a proxy
+      const traveledDistance = routeInfo?.distance || distance || 0;
+      await pickupAPI.updatePickupStatus(pickupData?._id, 'completed', null, 'Submitted at warehouse', traveledDistance);
+      Alert.alert('Waste Submitted', 'Waste successfully submitted to warehouse!');
+      navigation.navigate('DeliveryMain');
+    } catch (e) {
+      Alert.alert('Error', 'Failed to submit status');
+    }
   };
 
   const handleBack = () => {

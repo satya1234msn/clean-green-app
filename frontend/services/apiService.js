@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Base URL for the API
 // Use your computer's IP address instead of localhost for device testing
-const BASE_URL = 'http://10.164.37.73:5000/api';
+const BASE_URL = 'http://172.26.0.117:5000/api';
 
 // Create axios instance
 const api = axios.create({
@@ -151,11 +151,12 @@ export const pickupAPI = {
   },
 
   // Update pickup status
-  updatePickupStatus: async (pickupId, status, location, notes) => {
+  updatePickupStatus: async (pickupId, status, location, notes, distanceKm) => {
     const response = await api.put(`/pickups/${pickupId}/status`, {
       status,
       location,
       notes,
+      distanceKm,
     });
     return response.data;
   },
@@ -172,6 +173,15 @@ export const pickupAPI = {
   // Get pickup details
   getPickupDetails: async (pickupId) => {
     const response = await api.get(`/pickups/${pickupId}`);
+    return response.data;
+  },
+
+  // Schedule pickup after admin approval
+  schedulePickup: async (pickupId, scheduledDate, scheduledTime) => {
+    const response = await api.put(`/pickups/${pickupId}/schedule`, {
+      scheduledDate,
+      scheduledTime,
+    });
     return response.data;
   },
 
@@ -283,7 +293,7 @@ export const deliveryAPI = {
 
   // Accept pickup
   acceptPickup: async (pickupId) => {
-    const response = await api.post(`/pickups/${pickupId}/accept`);
+    const response = await api.put(`/pickups/${pickupId}/accept`);
     return response.data;
   },
 

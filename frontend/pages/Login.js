@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Animated } from 'react-native';
 import InputField from '../components/InputField';
 import Button from '../components/Button';
 import { authService } from '../services/authService';
@@ -15,6 +16,7 @@ export default function Login({ navigation }) {
     phone: ''
   });
   const [loading, setLoading] = useState(false);
+  const [switchAnim] = useState(new Animated.Value(0));
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -89,14 +91,14 @@ export default function Login({ navigation }) {
   };
 
   const switchRole = (newRole) => {
+    if (newRole === role) return;
+    Animated.sequence([
+      Animated.timing(switchAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.timing(switchAnim, { toValue: 0, duration: 200, useNativeDriver: true })
+    ]).start();
     setRole(newRole);
-    // Clear form when switching roles
-    setFormData({
-      email: '',
-      password: '',
-      name: '',
-      phone: ''
-    });
+    setTab('login');
+    setFormData({ email: '', password: '', name: '', phone: '' });
   };
 
   return (
@@ -130,7 +132,10 @@ export default function Login({ navigation }) {
         </View>
 
         {/* Login Form */}
-        <View style={styles.formContainer}>
+        <Animated.View style={[styles.formContainer, {
+          opacity: switchAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.5] }),
+          transform: [{ scale: switchAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.98] }) }]
+        }]}>        
           <View style={styles.tabRow}>
             <TouchableOpacity onPress={() => setTab('login')}>
               <Text style={[styles.tab, tab === 'login' && styles.activeTab]}>Login</Text>
@@ -220,7 +225,7 @@ export default function Login({ navigation }) {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </View>
     </KeyboardAvoidingView>
   );

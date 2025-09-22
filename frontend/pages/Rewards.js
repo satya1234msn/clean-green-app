@@ -1,13 +1,28 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { rewardAPI } from '../services/apiService';
 
 export default function Rewards({ navigation }) {
-  const rewards = [
-    { id: 1, title: 'obtained for', description: 'Recycling 5 plastic bottles', coupon: 'ZOMATO50' },
-    { id: 2, title: 'obtained for', description: 'Completing 10 pickups', coupon: 'SWIGGY20' },
-    { id: 3, title: 'obtained for', description: 'Eco Warrior Badge', coupon: 'ECO10' },
-    { id: 4, title: 'obtained for', description: 'Green Champion', coupon: 'AMAZON15' },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [rewards, setRewards] = useState([]);
+
+  useEffect(() => {
+    loadRewards();
+  }, []);
+
+  const loadRewards = async () => {
+    try {
+      setLoading(true);
+      const res = await rewardAPI.getRewards(1, 20, 'active');
+      if (res.status === 'success') {
+        setRewards(res.data.rewards || res.data || []);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to load rewards');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleHome = () => {
     navigation.navigate('Dashboard');
@@ -32,26 +47,30 @@ export default function Rewards({ navigation }) {
         {/* Rewards List */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Available Rewards</Text>
-          <View style={styles.rewardsContainer}>
-            {rewards.map((reward) => (
-              <View key={reward.id} style={styles.rewardItem}>
-                <View style={styles.couponCard}>
-                  <Text style={styles.couponText}>{reward.coupon}</Text>
-                </View>
-                <View style={styles.rewardInfo}>
-                  <Text style={styles.rewardDescription}>
-                    {reward.title}
-                  </Text>
-                  <Text style={styles.rewardDetail}>
-                    {reward.description}
-                  </Text>
-                </View>
-                <TouchableOpacity style={styles.redeemButton}>
-                  <Text style={styles.redeemButtonText}>Redeem</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
+          {loading ? (
+            <ActivityIndicator />
+          ) : (
+            <View style={styles.rewardsContainer}>
+              {rewards.length === 0 ? (
+                <Text style={{ color: '#666' }}>No rewards yet.</Text>
+              ) : (
+                rewards.map((reward) => (
+                  <View key={reward._id} style={styles.rewardItem}>
+                    <View style={styles.couponCard}>
+                      <Text style={styles.couponText}>{reward.couponCode}</Text>
+                    </View>
+                    <View style={styles.rewardInfo}>
+                      <Text style={styles.rewardDescription}>{reward.title}</Text>
+                      <Text style={styles.rewardDetail}>{reward.description}</Text>
+                    </View>
+                    <TouchableOpacity style={styles.redeemButton} onPress={() => Alert.alert('Redeem', 'Use this coupon at checkout')}>
+                      <Text style={styles.redeemButtonText}>Redeem</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
         </View>
 
         {/* Navigation Buttons */}

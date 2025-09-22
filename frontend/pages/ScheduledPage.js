@@ -16,16 +16,18 @@ export default function ScheduledPage({ navigation }) {
     try {
       setLoading(true);
 
-      // Get live schedules (pending and accepted)
-      const liveResponse = await pickupAPI.getUserPickups('live');
+      // Get live schedules (awaiting_agent, accepted, in_progress)
+      const liveResponse = await pickupAPI.getUserPickups('all');
       if (liveResponse.status === 'success') {
-        setLiveSchedules(liveResponse.data.pickups || []);
+        const all = liveResponse.data.pickups || [];
+        setLiveSchedules(all.filter(p => ['awaiting_agent', 'accepted', 'in_progress'].includes(p.status)));
       }
 
-      // Get history (completed and rejected)
-      const historyResponse = await pickupAPI.getUserPickups('history');
+      // Get history (completed and admin_rejected)
+      const historyResponse = await pickupAPI.getUserPickups('all');
       if (historyResponse.status === 'success') {
-        setScheduledHistory(historyResponse.data.pickups || []);
+        const all = historyResponse.data.pickups || [];
+        setScheduledHistory(all.filter(p => ['completed', 'admin_rejected', 'cancelled'].includes(p.status)));
       }
     } catch (error) {
       console.error('Error loading schedules:', error);

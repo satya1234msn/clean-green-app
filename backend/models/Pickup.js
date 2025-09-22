@@ -49,8 +49,15 @@ const pickupSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'accepted', 'in_progress', 'completed', 'cancelled', 'rejected'],
+    enum: ['pending', 'admin_approved', 'admin_rejected', 'awaiting_agent', 'accepted', 'in_progress', 'completed', 'cancelled'],
     default: 'pending'
+  },
+  adminApproval: {
+    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    approvedAt: { type: Date, default: null },
+    rejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    rejectedAt: { type: Date, default: null },
+    reason: { type: String, default: null }
   },
   priority: {
     type: String,

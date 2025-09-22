@@ -12,8 +12,9 @@ const router = express.Router();
 router.get('/available', protect, restrictTo('delivery'), requireOnline, async (req, res) => {
   try {
     const availablePickups = await Pickup.find({
-      status: 'pending',
-      priority: 'now'
+      status: { $in: ['admin_approved', 'awaiting_agent'] },
+      priority: 'now',
+      deliveryAgent: null
     })
     .populate('user', 'name phone')
     .populate('address')

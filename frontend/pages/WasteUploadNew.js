@@ -27,7 +27,6 @@ export default function WasteUploadNew({ navigation }) {
   // Form state
   const [wasteType, setWasteType] = useState('');
   const [wasteDetails, setWasteDetails] = useState({
-    foodBoxes: 0,
     bottles: 0,
     otherItems: '',
   });
@@ -177,10 +176,7 @@ export default function WasteUploadNew({ navigation }) {
         return;
       }
 
-      if (priority === 'scheduled' && (!scheduledDate || !scheduledTime)) {
-        Alert.alert('Error', 'Please select schedule date and time');
-        return;
-      }
+      // Scheduling will be allowed only after admin approval
 
       setLoading(true);
 
@@ -191,8 +187,6 @@ export default function WasteUploadNew({ navigation }) {
         wasteDetails,
         images: uploadedImages,
         priority,
-        scheduledDate: priority === 'scheduled' ? scheduledDate.toISOString() : null,
-        scheduledTime: priority === 'scheduled' ? scheduledTime : null,
         estimatedWeight: parseFloat(estimatedWeight) || 1,
       };
 
@@ -201,21 +195,22 @@ export default function WasteUploadNew({ navigation }) {
 
       if (response.status === 'success') {
         Alert.alert(
-          'Success!',
-          'Your pickup request has been submitted successfully',
+          'Submitted!',
+          'Waiting for admin approval. You will be notified once approved.',
           [
             {
               text: 'OK',
               onPress: () => {
                 navigation.navigate('AfterScheduling', {
                   wasteType,
-                  foodBoxes: wasteDetails.foodBoxes,
                   bottles: wasteDetails.bottles,
                   otherItems: wasteDetails.otherItems,
                   images: uploadedImages,
                   immediatePickup: priority === 'now',
                   address: selectedAddress,
                   estimatedWeight: parseFloat(estimatedWeight) || 1,
+                  pickupId: response.data._id || response.data?.pickup?._id || response.data?.data?._id,
+                  priority,
                 });
               },
             },
@@ -238,7 +233,6 @@ export default function WasteUploadNew({ navigation }) {
   };
 
   const wasteTypes = [
-    { id: 'food', name: 'Food Waste', icon: '🍽️', description: 'Food containers, leftovers' },
     { id: 'bottles', name: 'Bottles', icon: '🍶', description: 'Plastic bottles, glass bottles' },
     { id: 'mixed', name: 'Mixed Waste', icon: '♻️', description: 'Multiple types of waste' },
     { id: 'other', name: 'Other', icon: '📦', description: 'Other recyclable items' },
@@ -337,21 +331,6 @@ export default function WasteUploadNew({ navigation }) {
         {wasteType && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Waste Details</Text>
-
-            {(wasteType === 'food' || wasteType === 'mixed') && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Number of Food Containers</Text>
-                <TextInput
-                  style={styles.input}
-                  value={wasteDetails.foodBoxes.toString()}
-                  onChangeText={(text) =>
-                    setWasteDetails(prev => ({ ...prev, foodBoxes: parseInt(text) || 0 }))
-                  }
-                  keyboardType="numeric"
-                  placeholder="0"
-                />
-              </View>
-            )}
 
             {(wasteType === 'bottles' || wasteType === 'mixed') && (
               <View style={styles.inputGroup}>
@@ -477,43 +456,7 @@ export default function WasteUploadNew({ navigation }) {
 
           {priority === 'scheduled' && (
             <View style={styles.scheduleInputs}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Date</Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => {
-                    // Date picker implementation
-                    Alert.alert('Date Picker', 'Date picker will be implemented');
-                  }}
-                >
-                  <Text style={styles.dateText}>
-                    {scheduledDate.toDateString()}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Time Slot</Text>
-                <View style={styles.timeSlots}>
-                  {['9:00-12:00', '12:00-15:00', '15:00-18:00'].map((slot) => (
-                    <TouchableOpacity
-                      key={slot}
-                      style={[
-                        styles.timeSlot,
-                        scheduledTime === slot && styles.selectedTimeSlot,
-                      ]}
-                      onPress={() => setScheduledTime(slot)}
-                    >
-                      <Text style={[
-                        styles.timeSlotText,
-                        scheduledTime === slot && styles.selectedTimeSlotText,
-                      ]}>
-                        {slot}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+              <Text style={styles.label}>Scheduling will open after admin approval.</Text>
             </View>
           )}
         </View>
