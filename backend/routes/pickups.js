@@ -74,10 +74,23 @@ router.put('/:id/admin/approve', protect, restrictTo('admin'), async (req, res) 
       icon: '🎟️'
     });
 
-    // Notify user and agents
+    // Notify user and agents (immediate or scheduled)
     if (req.io) {
+      // Notify the requesting user
       req.io.to(`user-${pickup.user._id}`).emit('pickup-admin-approved', { pickup: pickup.toObject(), reward: reward.toObject() });
-      req.io.emit('new-pickup', { pickup: pickup.toObject(), message: 'Admin approved pickup available' });
+      // For scheduled, queue a delayed broadcast near the scheduled time
+      const payload = { pickup: pickup.toObject(), message: 'Admin approved pickup available' };
+      const isScheduled = pickup.priority === 'scheduled' && pickup.scheduledDate;
+      if (isScheduled) {
+        const delayMs = Math.max(0, new Date(pickup.scheduledDate).getTime() - Date.now());
+        setTimeout(() => {
+          req.io.to('delivery-all').emit('new-pickup-available', payload);
+          req.io.to('delivery-all').emit('new-pickup', payload);
+        }, Math.min(delayMs, 24 * 60 * 60 * 1000));
+      } else {
+        req.io.to('delivery-all').emit('new-pickup-available', payload);
+        req.io.to('delivery-all').emit('new-pickup', payload);
+      }
     }
 
     res.status(200).json({ status: 'success', message: 'Pickup approved', data: { pickup, reward } });
@@ -194,22 +207,7 @@ router.post('/', protect, async (req, res) => {
   }
 });
 
-// Get single pickup (owner)
-router.get('/:id', protect, async (req, res) => {
-  try {
-    const pickup = await Pickup.findById(req.params.id).populate('address deliveryAgent user');
-    if (!pickup) {
-      return res.status(404).json({ status: 'error', message: 'Pickup not found' });
-    }
-    if (String(pickup.user._id) !== String(req.user._id) && req.user.role !== 'admin' && req.user.role !== 'delivery') {
-      return res.status(403).json({ status: 'error', message: 'Not authorized to view this pickup' });
-    }
-    res.status(200).json({ status: 'success', data: pickup });
-  } catch (error) {
-    console.error('Get pickup error:', error);
-    res.status(500).json({ status: 'error', message: 'Failed to fetch pickup' });
-  }
-});
+// (moved below to avoid conflicting with /user and other routes)
 
 // Get user's pickups
 router.get('/user', protect, async (req, res) => {
@@ -247,6 +245,26 @@ router.get('/user', protect, async (req, res) => {
       status: 'error',
       message: 'Failed to fetch pickups'
     });
+  }
+});
+
+// Get single pickup (owner/admin/delivery)
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const pickup = await Pickup.findById(req.params.id).populate('address deliveryAgent user');
+    if (!pickup) {
+      return res.status(404).json({ status: 'error', message: 'Pickup not found' });
+    }
+    const isOwner = String(pickup.user._id) === String(req.user._id);
+    const isAdmin = req.user.role === 'admin';
+    const isDelivery = req.user.role === 'delivery' && String(pickup.deliveryAgent) === String(req.user._id);
+    if (!isOwner && !isAdmin && !isDelivery) {
+      return res.status(403).json({ status: 'error', message: 'Not authorized to view this pickup' });
+    }
+    res.status(200).json({ status: 'success', data: pickup });
+  } catch (error) {
+    console.error('Get pickup error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch pickup' });
   }
 });
 

@@ -74,6 +74,28 @@ export const notificationService = {
     }
   },
 
+  // Alias listener for alternate event name
+  onNewPickup: (callback) => {
+    if (socket) {
+      socket.on('new-pickup', (data) => {
+        console.log('New pickup (alias) available:', data);
+        callback(data);
+      });
+    }
+  },
+
+  // Unsubscribe helpers to prevent duplicate alerts
+  offNewPickupAvailable: () => {
+    if (socket) {
+      socket.off('new-pickup-available');
+    }
+  },
+  offNewPickup: () => {
+    if (socket) {
+      socket.off('new-pickup');
+    }
+  },
+
   // Listen for earnings update
   onEarningsUpdate: (callback) => {
     if (socket) {

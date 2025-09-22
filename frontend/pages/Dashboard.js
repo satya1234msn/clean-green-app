@@ -5,7 +5,7 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import LineChart from '../components/LineChart';
 import { LinearGradient } from 'expo-linear-gradient';
-import { userAPI, addressAPI } from '../services/apiService';
+import { userAPI, addressAPI, pickupAPI } from '../services/apiService';
 import { authService } from '../services/authService';
 
 const { width } = Dimensions.get('window');
@@ -16,6 +16,7 @@ export default function Dashboard({ navigation }) {
   const [dashboardData, setDashboardData] = useState(null);
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userPickups, setUserPickups] = useState([]);
 
   useEffect(() => {
     loadDashboardData();
@@ -51,6 +52,16 @@ export default function Dashboard({ navigation }) {
         } else {
           setCurrentAddress('No address set');
         }
+      }
+
+      // Load user's pickups for detailed history
+      try {
+        const pickupsRes = await pickupAPI.getUserPickups('all');
+        if (pickupsRes.status === 'success') {
+          setUserPickups(pickupsRes.data.pickups || []);
+        }
+      } catch (e) {
+        // ignore history errors but keep dashboard
       }
     } catch (error) {
       console.error('Error loading dashboard:', error);
@@ -100,21 +111,13 @@ export default function Dashboard({ navigation }) {
     date: new Date(reward.issuedDate).toLocaleDateString()
   })) || [];
 
-  // Detailed history from dashboard data
-  const detailedHistory = dashboardData?.recentUploads ? [
-    dashboardData.recentUploads.accepted ? {
-      date: new Date(dashboardData.recentUploads.accepted.createdAt).toLocaleDateString(),
-      action: `Submitted ${dashboardData.recentUploads.accepted.wasteType} waste`,
-      points: `+${dashboardData.recentUploads.accepted.points || 0}`,
-      status: 'accepted'
-    } : null,
-    dashboardData.recentUploads.rejected ? {
-      date: new Date(dashboardData.recentUploads.rejected.createdAt).toLocaleDateString(),
-      action: `Submitted ${dashboardData.recentUploads.rejected.wasteType} waste`,
-      points: '0',
-      status: 'rejected'
-    } : null
-  ].filter(Boolean) : [];
+  // Detailed history from pickups
+  const detailedHistory = (userPickups || []).slice(0, 10).map(p => ({
+    date: new Date(p.createdAt).toLocaleString(),
+    action: `Submitted ${p.wasteType} waste${p.priority === 'scheduled' ? ` (Scheduled ${p.scheduledTime || ''})` : ''}`,
+    points: p.points ? `+${p.points}` : '0',
+    status: p.status
+  }));
 
   const handleUpload = () => {
     navigation.navigate('WasteUploadNew');

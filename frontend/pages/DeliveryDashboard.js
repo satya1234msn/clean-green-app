@@ -14,8 +14,7 @@ export default function DeliveryDashboard({ navigation }) {
 
   useEffect(() => {
     loadDashboardData();
-    setupNotifications();
-
+    // Do not auto init sockets until user goes online
     return () => {
       notificationService.disconnect();
     };
@@ -104,17 +103,32 @@ export default function DeliveryDashboard({ navigation }) {
 
       // Update online status in backend
       await userAPI.updateOnlineStatus(newOnlineStatus);
-
       setIsOnline(newOnlineStatus);
-
       if (newOnlineStatus) {
-        // Join delivery room when going online
         if (user) {
+          // initialize socket and join room on-demand when going online
+          notificationService.init(user._id);
           notificationService.joinDeliveryRoom(user._id);
+          // bind listeners fresh to avoid duplicates
+          notificationService.offNewPickupAvailable();
+          notificationService.offNewPickup();
+          notificationService.onNewPickupAvailable(() => {
+            Alert.alert('New Pickup Available', 'A new pickup is available in your area', [
+              { text: 'Check Now', onPress: () => loadDashboardData() },
+              { text: 'Later', style: 'cancel' }
+            ]);
+          });
+          notificationService.onNewPickup(() => {
+            Alert.alert('New Pickup Available', 'A new pickup is available in your area', [
+              { text: 'Check Now', onPress: () => loadDashboardData() },
+              { text: 'Later', style: 'cancel' }
+            ]);
+          });
         }
         Alert.alert('Online', 'You are now online and will receive pickup notifications');
       } else {
         Alert.alert('Offline', 'You are now offline');
+        notificationService.disconnect();
       }
     } catch (error) {
       console.error('Error toggling online status:', error);

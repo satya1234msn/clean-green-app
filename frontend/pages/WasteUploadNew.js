@@ -176,7 +176,7 @@ export default function WasteUploadNew({ navigation }) {
         return;
       }
 
-      // Scheduling will be allowed only after admin approval
+      // If user selects scheduled, capture date/time now and send with request
 
       setLoading(true);
 
@@ -187,6 +187,8 @@ export default function WasteUploadNew({ navigation }) {
         wasteDetails,
         images: uploadedImages,
         priority,
+        scheduledDate: priority === 'scheduled' ? scheduledDate.toISOString() : null,
+        scheduledTime: priority === 'scheduled' ? scheduledTime : null,
         estimatedWeight: parseFloat(estimatedWeight) || 1,
       };
 
@@ -456,7 +458,22 @@ export default function WasteUploadNew({ navigation }) {
 
           {priority === 'scheduled' && (
             <View style={styles.scheduleInputs}>
-              <Text style={styles.label}>Scheduling will open after admin approval.</Text>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Time Slot</Text>
+                <View style={styles.timeSlots}>
+                  {['9:00-12:00', '12:00-15:00', '15:00-18:00'].map((slot) => (
+                    <TouchableOpacity
+                      key={slot}
+                      style={[styles.timeSlot, scheduledTime === slot && styles.selectedTimeSlot]}
+                      onPress={() => setScheduledTime(slot)}
+                    >
+                      <Text style={[styles.timeSlotText, scheduledTime === slot && styles.selectedTimeSlotText]}>
+                        {slot}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             </View>
           )}
         </View>

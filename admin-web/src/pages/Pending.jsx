@@ -20,7 +20,14 @@ export default function Pending() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
+    if (!token) {
+      window.location.href = '/login';
+      return;
+    }
+    load();
+  }, []);
 
   const approve = async (id) => {
     await pickupApi.approve(id);
@@ -32,11 +39,7 @@ export default function Pending() {
     await load();
   };
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
-  if (!token) {
-    window.location.href = '/login';
-    return null;
-  }
+  // token check handled in useEffect
 
   return (
     <div>
@@ -53,6 +56,15 @@ export default function Pending() {
               <div style={{ fontWeight: 700 }}>{p.user?.name} • {p.wasteType}</div>
               <div style={{ color: '#475569', fontSize: 14 }}>Weight: {p.estimatedWeight} kg</div>
               <div style={{ color: '#475569', fontSize: 14 }}>Address: {p.address?.fullAddress}</div>
+              {Array.isArray(p.images) && p.images.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 12 }}>
+                  {p.images.slice(0, 6).map((img, idx) => (
+                    <a key={idx} href={img} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+                      <img src={img} alt={`waste-${idx}`} style={{ width: '100%', height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid #e5e7eb', cursor: 'zoom-in' }} />
+                    </a>
+                  ))}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button onClick={() => approve(p._id)} style={{ padding: '8px 12px', border: 0, background: '#16a34a', color: '#fff', borderRadius: 8 }}>Approve</button>
                 <button onClick={() => reject(p._id)} style={{ padding: '8px 12px', border: 0, background: '#dc2626', color: '#fff', borderRadius: 8 }}>Reject</button>

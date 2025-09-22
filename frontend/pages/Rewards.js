@@ -55,15 +55,13 @@ export default function Rewards({ navigation }) {
                 <Text style={{ color: '#666' }}>No rewards yet.</Text>
               ) : (
                 rewards.map((reward) => (
-                  <View key={reward._id} style={styles.rewardItem}>
-                    <View style={styles.couponCard}>
+                  <View key={reward._id} style={styles.rewardItemColumn}>
+                    <Text style={styles.rewardDescription}>{reward.title}</Text>
+                    <Text style={styles.rewardDetail}>{reward.description}</Text>
+                    <View style={styles.couponCardRow}>
                       <Text style={styles.couponText}>{reward.couponCode}</Text>
                     </View>
-                    <View style={styles.rewardInfo}>
-                      <Text style={styles.rewardDescription}>{reward.title}</Text>
-                      <Text style={styles.rewardDetail}>{reward.description}</Text>
-                    </View>
-                    <TouchableOpacity style={styles.redeemButton} onPress={() => Alert.alert('Redeem', 'Use this coupon at checkout')}>
+                    <TouchableOpacity style={styles.redeemButtonFull} onPress={() => Alert.alert('Redeem', 'Use this coupon at checkout')}>
                       <Text style={styles.redeemButtonText}>Redeem</Text>
                     </TouchableOpacity>
                   </View>
@@ -132,13 +130,11 @@ const styles = StyleSheet.create({
   rewardsContainer: {
     marginBottom: 20,
   },
-  rewardItem: {
+  rewardItemColumn: {
     backgroundColor: '#fff',
     padding: 15,
     borderRadius: 8,
     marginBottom: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -152,13 +148,18 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginRight: 15,
   },
+  couponCardRow: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 6,
+    marginTop: 8,
+    alignItems: 'center'
+  },
   couponText: {
     fontSize: 14,
     color: '#fff',
     fontWeight: '600',
-  },
-  rewardInfo: {
-    flex: 1,
   },
   rewardDescription: {
     fontSize: 16,
@@ -170,11 +171,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
-  redeemButton: {
+  redeemButtonFull: {
     backgroundColor: '#4CAF50',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderRadius: 6,
+    marginTop: 10,
+    alignItems: 'center'
   },
   redeemButtonText: {
     color: '#fff',

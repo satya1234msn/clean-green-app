@@ -99,6 +99,7 @@ io.on('connection', (socket) => {
 
   socket.on('join-delivery-room', (deliveryId) => {
     socket.join(`delivery-${deliveryId}`);
+    socket.join('delivery-all');
     console.log(`Delivery agent ${deliveryId} joined room`);
   });
 
