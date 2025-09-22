@@ -17,6 +17,7 @@ import AddressManagement from '../pages/AddressManagement';
 import Support from '../pages/Support';
 import WarehouseNavigation from '../pages/WarehouseNavigation';
 import UserTrackingMap from '../components/UserTrackingMap';
+import DeliveryRoutePage from '../pages/DeliveryRoutePage';
 import EarningsPage from '../pages/EarningsPage';
 import SchedulePickupPage from '../pages/SchedulePickupPage';
 
@@ -44,6 +45,7 @@ export default function AppNavigator() {
       <Stack.Screen name="UserTrackingMap" component={UserTrackingMap} />
       <Stack.Screen name="EarningsPage" component={EarningsPage} />
       <Stack.Screen name="SchedulePickupPage" component={SchedulePickupPage} />
+      <Stack.Screen name="DeliveryRoutePage" component={DeliveryRoutePage} />
     </Stack.Navigator>
   );
 }

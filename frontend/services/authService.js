@@ -3,12 +3,18 @@ import { authAPI, apiUtils } from './apiService';
 
 // Authentication service with backend integration
 export const authService = {
-  // Login function
+  // Login function - supports (email, password) or ({ email, password, role })
   login: async (email, password) => {
     try {
-      console.log('Login button pressed!', { email, password });
+      let payload;
+      if (typeof email === 'object' && email !== null) {
+        payload = { email: email.email, password: email.password, role: email.role };
+      } else {
+        payload = { email, password };
+      }
+      console.log('Login attempt', { email: payload.email, hasPassword: !!payload.password, role: payload.role });
 
-      const response = await authAPI.login({ email, password });
+      const response = await authAPI.login(payload);
 
       if (response.status === 'success') {
         const { user, token } = response.data;

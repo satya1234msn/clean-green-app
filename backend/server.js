@@ -111,6 +111,26 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });
+
+  // DEMO: Periodic test notifications for delivery agents
+  if (process.env.DEMO_AGENT_NOTIFICATIONS === 'true') {
+    const interval = setInterval(() => {
+      try {
+        const demo = {
+          pickup: {
+            _id: `DEMO-${Date.now()}`,
+            wasteType: 'bottles',
+            address: { formattedAddress: 'Demo Street 123, Test City' },
+            estimatedWeight: 2,
+          },
+          message: 'Demo pickup nearby',
+        };
+        io.to('delivery-all').emit('new-pickup-available', demo);
+      } catch {}
+    }, parseInt(process.env.DEMO_AGENT_INTERVAL_MS || '20000', 10));
+
+    socket.on('disconnect', () => clearInterval(interval));
+  }
 });
 
 // Make io accessible to routes

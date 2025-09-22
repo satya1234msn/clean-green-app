@@ -69,7 +69,7 @@ export default function WasteUploadNew({ navigation }) {
         if (defaultAddress) {
           setSelectedAddress(defaultAddress);
         } else if (response.data.length > 0) {
-          setSelectedAddress(response.data);
+          setSelectedAddress(response.data[0]);
         }
       }
     } catch (error) {
@@ -268,7 +268,7 @@ export default function WasteUploadNew({ navigation }) {
           {addresses.length === 0 ? (
             <TouchableOpacity
               style={styles.addAddressButton}
-              onPress={() => navigation.navigate('AddressManagement')}
+          onPress={() => navigation.navigate('AddressManagement')}
             >
               <Text style={styles.addAddressText}>+ Add Pickup Address</Text>
             </TouchableOpacity>

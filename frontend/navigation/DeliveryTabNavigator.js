@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import DeliveryDashboard from '../pages/DeliveryDashboard';
 import DeliveryEarnings from '../pages/DeliveryEarnings';
 import DeliveryProfile from '../pages/DeliveryProfile';
+import DeliveryRoutePage from '../pages/DeliveryRoutePage';
 import { Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -28,6 +29,16 @@ export default function DeliveryTabNavigator() {
       <Tab.Screen name="DeliveryDashboard" component={DeliveryDashboard} options={{ title: 'Dashboard' }} />
       <Tab.Screen name="DeliveryEarnings" component={DeliveryEarnings} options={{ title: 'Earnings' }} />
       <Tab.Screen name="DeliveryProfile" component={DeliveryProfile} options={{ title: 'Profile' }} />
+      {/* Hidden route page within the same navigator to allow navigation */}
+      <Tab.Screen
+        name="DeliveryRoutePage"
+        component={DeliveryRoutePage}
+        options={{
+          headerShown: false,
+          tabBarButton: () => null,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
     </Tab.Navigator>
   );
 }

@@ -25,10 +25,8 @@ export default function DeliveryDashboard({ navigation }) {
     try {
       const currentUser = await authService.getCurrentUser();
       if (currentUser) {
-        // Initialize socket connection
+        // Ensure single socket instance
         notificationService.init(currentUser._id);
-
-        // Join user room for notifications
         notificationService.joinUserRoom(currentUser._id);
 
         // Listen for pickup requests with simple alert
@@ -45,12 +43,30 @@ export default function DeliveryDashboard({ navigation }) {
 
         // Listen for new pickups available
         notificationService.onNewPickupAvailable((data) => {
+          const pk = (data && (data.pickup || data.data?.pickup || data.pickupData)) || data;
+          const title = pk?.wasteType ? `Pickup: ${pk.wasteType}` : 'New Pickup Available';
+          const addr = pk?.address?.formattedAddress || pk?.address?.apartmentRoadArea || '';
           Alert.alert(
-            'New Pickup Available',
-            'A new pickup is available in your area. Accept?',
+            title,
+            addr ? `${addr}\nAccept this job?` : 'A new pickup is available in your area. Accept?',
             [
-              { text: 'Reject', style: 'cancel' },
-              { text: 'Accept', onPress: () => handleNotificationAccept(data) }
+              { text: 'Reject', style: 'cancel', onPress: () => handleNotificationReject(pk) },
+              { text: 'Accept', onPress: () => handleNotificationAccept(pk) }
+            ]
+          );
+        });
+
+        // Also listen to generic new-pickup events
+        notificationService.onNewPickup((data) => {
+          const pk = (data && (data.pickup || data.data?.pickup || data.pickupData)) || data;
+          const title = pk?.wasteType ? `Pickup: ${pk.wasteType}` : 'Pickup Broadcast';
+          const addr = pk?.address?.formattedAddress || pk?.address?.apartmentRoadArea || '';
+          Alert.alert(
+            title,
+            addr ? `${addr}\nAccept this job?` : 'A pickup request has been broadcast. Accept?',
+            [
+              { text: 'Reject', style: 'cancel', onPress: () => handleNotificationReject(pk) },
+              { text: 'Accept', onPress: () => handleNotificationAccept(pk) }
             ]
           );
         });
@@ -66,13 +82,30 @@ export default function DeliveryDashboard({ navigation }) {
   };
 
   const handleNotificationAccept = async (notification) => {
+    const getPickupFromPayload = (payload) => {
+      if (!payload) return null;
+      if (payload.pickup) return payload.pickup;
+      if (payload.data?.pickup) return payload.data.pickup;
+      if (payload.pickupData) return payload.pickupData;
+      return payload;
+    };
     try {
-      console.log('Accepting notification:', notification);
+      const pickup = getPickupFromPayload(notification);
+      const pickupId = pickup?._id || notification?.pickupId || notification?._id;
+      if (!pickupId) {
+        Alert.alert('Error', 'Pickup data not available');
+        return;
+      }
 
-      // Navigate to route page with pickup data
-      navigation.navigate('DeliveryRoutePage', {
-        pickupData: notification.pickupData
-      });
+      try {
+        const { deliveryAPI } = await import('../services/apiService');
+        const res = await deliveryAPI.acceptPickup(pickupId);
+        const accepted = res?.data || res?.pickup || res;
+        navigation.navigate('DeliveryRoutePage', { pickupData: accepted || pickup });
+      } catch (e) {
+        console.error('Accept API error:', e);
+        Alert.alert('Accept Failed', 'Could not accept the pickup. It may have been taken.');
+      }
     } catch (error) {
       console.error('Error accepting notification:', error);
       Alert.alert('Error', 'Failed to accept pickup request');
@@ -95,7 +128,7 @@ export default function DeliveryDashboard({ navigation }) {
       // Get current user
       const currentUser = await authService.getCurrentUser();
       setUser(currentUser);
-      setIsOnline(currentUser?.isOnline || false);
+      setIsOnline(Boolean(currentUser?.isOnline));
 
       // Get dashboard data
       const response = await userAPI.getDashboard();
@@ -123,10 +156,14 @@ export default function DeliveryDashboard({ navigation }) {
         if (user) {
           // Initialize socket and join room when going online
           notificationService.init(user._id);
-          notificationService.joinDeliveryRoom(user._id);
-
-          // Set up notifications
-          await setupNotifications();
+          const connected = await notificationService.waitUntilConnected();
+          if (connected) {
+            notificationService.joinDeliveryRoom(user._id);
+            // Set up (deduplicated) listeners
+            await setupNotifications();
+          } else {
+            Alert.alert('Network', 'Could not connect to notifications. Will retry on next toggle.');
+          }
         }
         Alert.alert('Online', 'You are now online and will receive pickup notifications');
       } else {

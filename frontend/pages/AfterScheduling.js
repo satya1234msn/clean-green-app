@@ -23,14 +23,32 @@ export default function AfterScheduling({ navigation, route }) {
   const [executiveDetails, setExecutiveDetails] = useState(null);
 
   useEffect(() => {
-    let interval;
+    let cancelled = false;
+    let timer;
+
+    const poll = async (delayMs) => {
+      if (cancelled) return;
+      try {
+        await checkStatus();
+        // on success, keep a moderate interval
+        timer = setTimeout(() => poll(5000), 5000);
+      } catch (e) {
+        // on error (e.g., 429), backoff progressively
+        const next = Math.min(delayMs * 2 || 4000, 30000);
+        timer = setTimeout(() => poll(next), next);
+      }
+    };
+
     if (pickupId) {
-      interval = setInterval(checkStatus, 3000);
-      checkStatus();
+      poll(3000);
     } else {
       setLoading(false);
     }
-    return () => interval && clearInterval(interval);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [pickupId]);
 
   const checkStatus = async () => {
@@ -50,7 +68,10 @@ export default function AfterScheduling({ navigation, route }) {
         setIsAssigned(true);
         setExecutiveDetails({ name: data.deliveryAgent?.name || 'Assigned Agent', phone: data.deliveryAgent?.phone || '', vehicle: 'Bike', eta: '15-20 min', rating: 4.7, totalPickups: 100 });
       }
-    } catch (e) {}
+      return true;
+    } catch (e) {
+      return false;
+    }
   };
 
   const handleSchedule = () => {

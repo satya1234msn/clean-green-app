@@ -1,13 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import getEnvVars from '../config';
 
-// Base URL for the API
-// Use your computer's IP address instead of localhost for device testing
-const BASE_URL = 'http://172.26.0.117:5000/api';
+// Base URL for the API (configure in frontend/config.js)
+const { API_BASE_URL } = getEnvVars();
 
 // Create axios instance
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -54,11 +54,29 @@ api.interceptors.response.use(
       method: error.config?.method
     });
 
+    // 401: clear auth
     if (error.response?.status === 401) {
       // Token expired or invalid
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('userData');
-      // You might want to redirect to login screen here
+    }
+
+    // 429: Too Many Requests — apply bounded exponential backoff retry
+    const status = error.response?.status;
+    const config = error.config || {};
+    if (status === 429 && !config.__doNotRetry) {
+      config.__retryCount = config.__retryCount || 0;
+      const maxRetries = 4;
+      if (config.__retryCount < maxRetries) {
+        config.__retryCount += 1;
+        const retryAfterHeader = error.response?.headers?.['retry-after'];
+        const retryAfterMs = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1000 : null;
+        const baseDelay = 500; // ms
+        const backoff = Math.min(30000, retryAfterMs ?? baseDelay * Math.pow(2, config.__retryCount - 1));
+        const jitter = Math.floor(Math.random() * 200);
+        await new Promise((res) => setTimeout(res, backoff + jitter));
+        return api(config);
+      }
     }
     return Promise.reject(error);
   }
@@ -230,6 +248,12 @@ export const addressAPI = {
       latitude,
       longitude,
     });
+    return response.data;
+  },
+
+  // Search addresses by text
+  searchAddresses: async (query) => {
+    const response = await api.get(`/addresses/search?q=${encodeURIComponent(query)}`);
     return response.data;
   },
 };

@@ -1,10 +1,13 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import getEnvVars from '../config';
 
 // Use real backend - no dummy data
 export const USE_DUMMY = false;
+const { API_BASE_URL } = getEnvVars();
+
 const api = axios.create({
-  baseURL: 'http://172.26.0.117:5000/api',
+  baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

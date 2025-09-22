@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
 import StatCard from '../components/StatCard';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import LineChart from '../components/LineChart';
-import { LinearGradient } from 'expo-linear-gradient';
 import { userAPI, addressAPI, pickupAPI } from '../services/apiService';
 import { authService } from '../services/authService';
 
@@ -17,10 +17,23 @@ export default function Dashboard({ navigation }) {
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userPickups, setUserPickups] = useState([]);
+  const [envTrendData, setEnvTrendData] = useState([]);
+  const isFocused = useIsFocused();
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (isFocused) {
+      loadDashboardData();
+    }
+  }, [isFocused]);
+
+  // Recompute contribution trend whenever pickups change
+  useEffect(() => {
+    if (userPickups && userPickups.length) {
+      setEnvTrendData(computeDailyPlasticTrend(userPickups, 14));
+    } else {
+      setEnvTrendData([]);
+    }
+  }, [userPickups]);
 
   const loadDashboardData = async () => {
     try {
@@ -71,6 +84,35 @@ export default function Dashboard({ navigation }) {
     }
   };
 
+  // Compute plastic bottles submitted per day over last N days
+  const computeDailyPlasticTrend = (pickups = [], days = 14) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - (days - 1));
+    const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+    const series = {};
+    for (let i = 0; i < days; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      series[dayKey(d)] = 0;
+    }
+
+    pickups.forEach(p => {
+      const created = new Date(p.createdAt);
+      if (created >= start && created <= end) {
+        const key = dayKey(created);
+        const bottles = Number(p?.wasteDetails?.bottles) || (p.wasteType === 'bottles' ? 1 : 0);
+        series[key] = (series[key] || 0) + bottles;
+      }
+    });
+
+    return Object.entries(series).map(([k, v]) => ({ label: k.slice(5), value: v }));
+  };
+
+  // Compute total points fallback if backend doesn't provide
+  const computedTotalPoints = (userPickups || []).reduce((sum, p) => sum + (Number(p.points) || 0), 0);
+
   // Stats based on dashboard data
   const stats = [
     {
@@ -81,7 +123,11 @@ export default function Dashboard({ navigation }) {
     },
     {
       label: 'Total Points',
-      value: dashboardData?.stats?.totalPoints?.toString() || '0',
+      value: (
+        dashboardData?.stats?.totalPoints != null
+          ? String(dashboardData.stats.totalPoints)
+          : String(computedTotalPoints)
+      ),
       icon: '⭐',
       color: '#FF9800'
     },
@@ -96,8 +142,7 @@ export default function Dashboard({ navigation }) {
     points: `+${latestAccepted.points || 0}`
   }] : [];
 
-  // Remove awards section per request
-  const awardsReceived = [];
+  // Awards section removed per request
 
   // Detailed history from pickups
   const detailedHistory = (userPickups || []).slice(0, 5).map(p => ({
@@ -179,31 +224,20 @@ export default function Dashboard({ navigation }) {
           ))}
         </Card>
 
-        {/* Awards Received */}
-        <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Awards Received</Text>
-          {awardsReceived.map((award, index) => (
-            <View key={index} style={styles.awardItem}>
-              <Text style={styles.awardType}>{award.type}</Text>
-              <Text style={styles.awardTitle}>{award.title}</Text>
-              <Text style={styles.awardDate}>{award.date}</Text>
-              <Text style={[styles.awardArrow, { color: '#4CAF50' }]}>↗️</Text>
-            </View>
-          ))}
-        </Card>
+        {/* Awards section removed */}
 
-        {/* Candlestick Chart */}
+        {/* Environmental Contribution (plastic bottles per day) */}
         <LineChart
-          data={[
-            { label: 'Mon', value: 12 },
-            { label: 'Tue', value: 16 },
-            { label: 'Wed', value: 18 },
-            { label: 'Thu', value: 20 },
-            { label: 'Fri', value: 23 },
-            { label: 'Sat', value: 26 },
-            { label: 'Sun', value: 28 },
+          data={envTrendData?.length ? envTrendData : [
+            { label: 'D-6', value: 0 },
+            { label: 'D-5', value: 0 },
+            { label: 'D-4', value: 0 },
+            { label: 'D-3', value: 0 },
+            { label: 'D-2', value: 0 },
+            { label: 'D-1', value: 0 },
+            { label: 'Today', value: 0 },
           ]}
-          title="Waste Contribution Trend"
+          title="Plastic submitted per day"
         />
 
         {/* Detailed History */}

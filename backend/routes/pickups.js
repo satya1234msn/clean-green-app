@@ -71,6 +71,27 @@ router.put('/:id/admin/approve', protect, restrictTo('admin'), async (req, res) 
         req.io.to('delivery-all').emit('new-pickup-available', payload);
         req.io.to('delivery-all').emit('new-pickup', payload);
       }
+
+      // DEMO: Auto-assign a delivery agent after approval if enabled
+      if (process.env.DEMO_AUTO_ASSIGN === 'true') {
+        setTimeout(async () => {
+          try {
+            // Find any online delivery agent
+            const agent = await User.findOne({ role: 'delivery', isOnline: true });
+            if (agent) {
+              pickup.deliveryAgent = agent._id;
+              pickup.status = 'accepted';
+              pickup.timeline.push({ status: 'accepted', timestamp: new Date(), notes: 'Auto-assigned (DEMO)' });
+              await pickup.save();
+              await pickup.populate('user address deliveryAgent');
+              // Notify the user about acceptance
+              req.io.to(`user-${pickup.user._id}`).emit('pickup-accepted', { pickup: pickup.toObject(), message: 'Your pickup has been accepted (demo).' });
+            }
+          } catch (e) {
+            console.error('DEMO auto-assign error:', e);
+          }
+        }, parseInt(process.env.DEMO_ASSIGN_DELAY_MS || '5000', 10));
+      }
     }
 
     res.status(200).json({ status: 'success', message: 'Pickup approved', data: { pickup } });
