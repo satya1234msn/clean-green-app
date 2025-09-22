@@ -30,8 +30,12 @@ export default function Pending() {
   }, []);
 
   const approve = async (id) => {
-    await pickupApi.approve(id);
-    await load();
+    try {
+      await pickupApi.approve(id);
+      await load();
+    } catch (e) {
+      setError(e.response?.data?.message || 'Approve failed');
+    }
   };
   const reject = async (id) => {
     const reason = prompt('Reason for rejection?') || 'Not suitable';

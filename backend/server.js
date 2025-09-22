@@ -28,9 +28,9 @@ const envConfig = config.getEnvVars(currentEnv);
 
 const io = new Server(server, {
   cors: {
-    origin: envConfig.FRONTEND_URLS,
+    origin: '*',
     methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true
+    credentials: false
   }
 });
 

@@ -5,12 +5,13 @@ import { userAPI, pickupAPI } from '../services/apiService';
 import { authService } from '../services/authService';
 import notificationService from '../services/notificationService';
 
+
 export default function DeliveryDashboard({ navigation }) {
   const [isOnline, setIsOnline] = useState(false);
   const [user, setUser] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [notifications, setNotifications] = useState([]);
+
 
   useEffect(() => {
     loadDashboardData();
@@ -30,14 +31,14 @@ export default function DeliveryDashboard({ navigation }) {
         // Join user room for notifications
         notificationService.joinUserRoom(currentUser._id);
 
-        // Listen for pickup requests
+        // Listen for pickup requests with simple alert
         notificationService.onPickupRequest((data) => {
           Alert.alert(
             'New Pickup Request',
-            `You have a new pickup request from ${data.distance} away`,
+            `New pickup available ${data.distance} km away. Accept?`,
             [
-              { text: 'View Details', onPress: () => handleViewPickup(data) },
-              { text: 'Later', style: 'cancel' }
+              { text: 'Reject', style: 'cancel' },
+              { text: 'Accept', onPress: () => handleNotificationAccept(data) }
             ]
           );
         });
@@ -46,21 +47,17 @@ export default function DeliveryDashboard({ navigation }) {
         notificationService.onNewPickupAvailable((data) => {
           Alert.alert(
             'New Pickup Available',
-            'A new pickup is available in your area',
+            'A new pickup is available in your area. Accept?',
             [
-              { text: 'Check Now', onPress: () => loadDashboardData() },
-              { text: 'Later', style: 'cancel' }
+              { text: 'Reject', style: 'cancel' },
+              { text: 'Accept', onPress: () => handleNotificationAccept(data) }
             ]
           );
         });
 
         // Listen for earnings updates
         notificationService.onEarningsUpdate((data) => {
-          Alert.alert(
-            'Earnings Updated',
-            `Your earnings have been updated: ₹${data.amount}`,
-            [{ text: 'OK' }]
-          );
+          Alert.alert('Earnings Updated', `Your earnings: ₹${data.amount}`);
         });
       }
     } catch (error) {
@@ -68,10 +65,27 @@ export default function DeliveryDashboard({ navigation }) {
     }
   };
 
-  const handleViewPickup = (pickupData) => {
-    // Navigate to pickup details or show pickup card
-    console.log('Viewing pickup:', pickupData);
-    // You can implement navigation to pickup details here
+  const handleNotificationAccept = async (notification) => {
+    try {
+      console.log('Accepting notification:', notification);
+
+      // Navigate to route page with pickup data
+      navigation.navigate('DeliveryRoutePage', {
+        pickupData: notification.pickupData
+      });
+    } catch (error) {
+      console.error('Error accepting notification:', error);
+      Alert.alert('Error', 'Failed to accept pickup request');
+    }
+  };
+
+  const handleNotificationReject = async (notification) => {
+    try {
+      console.log('Rejecting notification:', notification);
+      // You can add logic here to send rejection to backend if needed
+    } catch (error) {
+      console.error('Error rejecting notification:', error);
+    }
   };
 
   const loadDashboardData = async () => {
@@ -104,26 +118,15 @@ export default function DeliveryDashboard({ navigation }) {
       // Update online status in backend
       await userAPI.updateOnlineStatus(newOnlineStatus);
       setIsOnline(newOnlineStatus);
+
       if (newOnlineStatus) {
         if (user) {
-          // initialize socket and join room on-demand when going online
+          // Initialize socket and join room when going online
           notificationService.init(user._id);
           notificationService.joinDeliveryRoom(user._id);
-          // bind listeners fresh to avoid duplicates
-          notificationService.offNewPickupAvailable();
-          notificationService.offNewPickup();
-          notificationService.onNewPickupAvailable(() => {
-            Alert.alert('New Pickup Available', 'A new pickup is available in your area', [
-              { text: 'Check Now', onPress: () => loadDashboardData() },
-              { text: 'Later', style: 'cancel' }
-            ]);
-          });
-          notificationService.onNewPickup(() => {
-            Alert.alert('New Pickup Available', 'A new pickup is available in your area', [
-              { text: 'Check Now', onPress: () => loadDashboardData() },
-              { text: 'Later', style: 'cancel' }
-            ]);
-          });
+
+          // Set up notifications
+          await setupNotifications();
         }
         Alert.alert('Online', 'You are now online and will receive pickup notifications');
       } else {
@@ -260,6 +263,8 @@ export default function DeliveryDashboard({ navigation }) {
           </TouchableOpacity>
         </View>
       </View>
+
+
     </ScrollView>
   );
 }
@@ -525,3 +530,5 @@ const styles = StyleSheet.create({
     color: '#333',
   },
 });
+
+

@@ -87,32 +87,20 @@ export default function Dashboard({ navigation }) {
     },
   ];
 
-  // Recent contributions from dashboard data
-  const recentContributions = [
-    dashboardData?.recentUploads?.accepted ? {
-      type: 'Accepted',
-      status: 'upward',
-      date: new Date(dashboardData.recentUploads.accepted.createdAt).toLocaleDateString(),
-      points: `+${dashboardData.recentUploads.accepted.points || 0}`
-    } : null,
-    dashboardData?.recentUploads?.rejected ? {
-      type: 'Rejected',
-      status: 'downward',
-      date: new Date(dashboardData.recentUploads.rejected.createdAt).toLocaleDateString(),
-      points: '0'
-    } : null
-  ].filter(Boolean);
-
-  // Awards from dashboard data
-  const awardsReceived = dashboardData?.rewards?.map(reward => ({
-    type: 'Awards',
+  // Recent contributions: latest accepted
+  const latestAccepted = (userPickups || []).filter(p => p.status === 'accepted' || p.status === 'completed').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt))[0];
+  const recentContributions = latestAccepted ? [{
+    type: 'Accepted',
     status: 'upward',
-    title: reward.title,
-    date: new Date(reward.issuedDate).toLocaleDateString()
-  })) || [];
+    date: new Date(latestAccepted.createdAt).toLocaleDateString(),
+    points: `+${latestAccepted.points || 0}`
+  }] : [];
+
+  // Remove awards section per request
+  const awardsReceived = [];
 
   // Detailed history from pickups
-  const detailedHistory = (userPickups || []).slice(0, 10).map(p => ({
+  const detailedHistory = (userPickups || []).slice(0, 5).map(p => ({
     date: new Date(p.createdAt).toLocaleString(),
     action: `Submitted ${p.wasteType} waste${p.priority === 'scheduled' ? ` (Scheduled ${p.scheduledTime || ''})` : ''}`,
     points: p.points ? `+${p.points}` : '0',
@@ -140,8 +128,7 @@ export default function Dashboard({ navigation }) {
   };
 
   const handleMoreHistory = () => {
-    // Navigate to a detailed history page or show more history
-    Alert.alert('History', 'Detailed history feature coming soon!');
+    navigation.navigate('ScheduledPage');
   };
 
   return (

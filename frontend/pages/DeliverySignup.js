@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import InputField from '../components/InputField';
 import Button from '../components/Button';
+import { uploadAPI } from '../services/apiService';
+import { authService } from '../services/authService';
 
 export default function DeliverySignup({ navigation }) {
   const [formData, setFormData] = useState({
@@ -9,33 +11,92 @@ export default function DeliverySignup({ navigation }) {
     age: '',
     email: '',
     phone: '',
+    password: '',
     vehicleType: '',
     bikeType: '',
     licenseNo: '',
     aadharNo: '',
     termsAccepted: false
   });
+  const [aadharUrl, setAadharUrl] = useState('');
+  const [licenseUrl, setLicenseUrl] = useState('');
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSignup = () => {
-    // Basic validation
-    if (!formData.name || !formData.age || !formData.email || !formData.phone || 
+  const handleSignup = async () => {
+    if (!formData.name || !formData.age || !formData.email || !formData.phone || !formData.password ||
         !formData.vehicleType || !formData.licenseNo || !formData.aadharNo) {
       alert('Please fill in all required fields');
       return;
     }
-    
+    if (!aadharUrl || !licenseUrl) {
+      alert('Please upload both Aadhar and License documents');
+      return;
+    }
     if (!formData.termsAccepted) {
       alert('Please accept the terms and conditions');
       return;
     }
+    try {
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        role: 'delivery',
+        vehicleType: formData.vehicleType,
+        licenseNumber: formData.licenseNo
+      };
+      const res = await authService.register(payload);
+      if (res.success) {
+        Alert.alert('Success', 'Delivery account created successfully! Please login.');
+        navigation.goBack();
+      } else {
+        Alert.alert('Registration Failed', res.message || 'Failed to create account');
+      }
+    } catch (e) {
+      Alert.alert('Error', e.response?.data?.message || 'Registration failed');
+    }
+  };
 
-    // In a real app, this would handle the signup process
-    alert('Delivery account created successfully!');
-    navigation.replace('DeliveryMain');
+  const selectVehicleType = () => {
+    Alert.alert('Vehicle Type', 'Choose one', [
+      { text: 'Bike', onPress: () => setFormData(prev => ({ ...prev, vehicleType: 'bike' })) },
+      { text: 'Scooter', onPress: () => setFormData(prev => ({ ...prev, vehicleType: 'scooter' })) },
+      { text: 'Car', onPress: () => setFormData(prev => ({ ...prev, vehicleType: 'car' })) },
+      { text: 'Van', onPress: () => setFormData(prev => ({ ...prev, vehicleType: 'van' })) },
+      { text: 'Cancel', style: 'cancel' }
+    ]);
+  };
+  const selectBikeType = () => {
+    Alert.alert('Bike Type', 'Choose one', [
+      { text: '100cc', onPress: () => setFormData(prev => ({ ...prev, bikeType: '100cc' })) },
+      { text: '125cc', onPress: () => setFormData(prev => ({ ...prev, bikeType: '125cc' })) },
+      { text: '150cc', onPress: () => setFormData(prev => ({ ...prev, bikeType: '150cc' })) },
+      { text: 'Electric', onPress: () => setFormData(prev => ({ ...prev, bikeType: 'electric' })) },
+      { text: 'Cancel', style: 'cancel' }
+    ]);
+  };
+
+  const uploadDoc = async (kind) => {
+    try {
+      const picker = await import('expo-image-picker');
+      const result = await picker.launchImageLibraryAsync({ mediaTypes: picker.MediaTypeOptions.Images, quality: 0.8 });
+      if (result.canceled || !result.assets?.length) return;
+      const uri = result.assets[0].uri;
+      const res = await uploadAPI.uploadDocument(uri, kind);
+      if (res.status === 'success') {
+        if (kind === 'aadhar') setAadharUrl(res.data.imageUrl);
+        if (kind === 'license') setLicenseUrl(res.data.imageUrl);
+        Alert.alert('Uploaded', `${kind} uploaded successfully`);
+      } else {
+        Alert.alert('Upload Failed', res.message || 'Try again');
+      }
+    } catch (e) {
+      Alert.alert('Upload Error', e.response?.data?.message || 'Failed to upload');
+    }
   };
 
   const handleHelp = () => {
@@ -85,6 +146,15 @@ export default function DeliverySignup({ navigation }) {
               onChangeText={(value) => handleInputChange('email', value)}
               style={styles.inputField}
             />
+
+            <InputField 
+              label="Password" 
+              secureTextEntry
+              placeholder="Create a password"
+              value={formData.password}
+              onChangeText={(value) => handleInputChange('password', value)}
+              style={styles.inputField}
+            />
             
             <InputField 
               label="Phone Number" 
@@ -95,21 +165,27 @@ export default function DeliverySignup({ navigation }) {
               style={styles.inputField}
             />
             
-            <InputField 
-              label="Type of Vehicle" 
-              placeholder="Select vehicle type"
-              value={formData.vehicleType}
-              onChangeText={(value) => handleInputChange('vehicleType', value)}
-              style={styles.inputField}
-            />
+            <TouchableOpacity onPress={selectVehicleType}>
+              <InputField 
+                label="Type of Vehicle" 
+                placeholder="Select vehicle type"
+                value={formData.vehicleType}
+                editable={false}
+                style={styles.inputField}
+              />
+            </TouchableOpacity>
             
-            <InputField 
-              label="Type of Bike" 
-              placeholder="Select bike type"
-              value={formData.bikeType}
-              onChangeText={(value) => handleInputChange('bikeType', value)}
-              style={styles.inputField}
-            />
+            {formData.vehicleType === 'bike' || formData.vehicleType === 'scooter' ? (
+              <TouchableOpacity onPress={selectBikeType}>
+                <InputField 
+                  label="Type of Bike" 
+                  placeholder="Select bike type"
+                  value={formData.bikeType}
+                  editable={false}
+                  style={styles.inputField}
+                />
+              </TouchableOpacity>
+            ) : null}
             
             <InputField 
               label="License Number" 
@@ -130,13 +206,13 @@ export default function DeliverySignup({ navigation }) {
 
             <View style={styles.uploadSection}>
               <Text style={styles.uploadLabel}>Aadhar Upload:</Text>
-              <Button title="Upload" style={styles.uploadButton} />
+              <Button title={aadharUrl ? 'Re-upload' : 'Upload'} style={styles.uploadButton} onPress={() => uploadDoc('aadhar')} />
               <Text style={styles.uploadNote}>Only jpeg, jpg or PDF</Text>
             </View>
 
             <View style={styles.uploadSection}>
               <Text style={styles.uploadLabel}>License Upload:</Text>
-              <Button title="Upload" style={styles.uploadButton} />
+              <Button title={licenseUrl ? 'Re-upload' : 'Upload'} style={styles.uploadButton} onPress={() => uploadDoc('license')} />
               <Text style={styles.uploadNote}>Only jpeg, jpg or PDF</Text>
             </View>
 

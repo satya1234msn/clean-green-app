@@ -44,55 +44,27 @@ export const notificationService = {
     }
   },
 
-  // Listen for pickup requests
+  // Listen for pickup requests - simplified
   onPickupRequest: (callback) => {
     if (socket) {
       socket.on('pickup-request', (data) => {
         console.log('Pickup request received:', data);
-        callback(data);
+        if (callback) {
+          callback(data);
+        }
       });
     }
   },
 
-  // Listen for pickup status updates
-  onPickupStatusUpdate: (callback) => {
-    if (socket) {
-      socket.on('pickup-status-update', (data) => {
-        console.log('Pickup status update:', data);
-        callback(data);
-      });
-    }
-  },
-
-  // Listen for new pickup available
+  // Listen for new pickup available - simplified
   onNewPickupAvailable: (callback) => {
     if (socket) {
       socket.on('new-pickup-available', (data) => {
         console.log('New pickup available:', data);
-        callback(data);
+        if (callback) {
+          callback(data);
+        }
       });
-    }
-  },
-
-  // Alias listener for alternate event name
-  onNewPickup: (callback) => {
-    if (socket) {
-      socket.on('new-pickup', (data) => {
-        console.log('New pickup (alias) available:', data);
-        callback(data);
-      });
-    }
-  },
-
-  // Unsubscribe helpers to prevent duplicate alerts
-  offNewPickupAvailable: () => {
-    if (socket) {
-      socket.off('new-pickup-available');
-    }
-  },
-  offNewPickup: () => {
-    if (socket) {
-      socket.off('new-pickup');
     }
   },
 
@@ -101,7 +73,9 @@ export const notificationService = {
     if (socket) {
       socket.on('earnings-update', (data) => {
         console.log('Earnings update:', data);
-        callback(data);
+        if (callback) {
+          callback(data);
+        }
       });
     }
   },
