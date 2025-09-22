@@ -1,17 +1,21 @@
 const ENV = {
   development: {
-    // Frontend URLs for CORS
+    // Frontend URLs for CORS - Allow access from anywhere
     FRONTEND_URLS: [
       'http://localhost:3000',
       'http://192.168.29.56:3000',
       'http://127.0.0.1:3000',
       'exp://192.168.29.56:8081',
       'exp://127.0.0.1:8081',
+      'http://0.0.0.0:3000',
+      'exp://0.0.0.0:8081',
+      'http://*:3000',
+      'exp://*:8081',
     ],
     // Backend server configuration
     SERVER: {
       PORT: 5000,
-      HOST: '192.168.29.56', // Change this to your IP address
+      HOST: '0.0.0.0', // Changed to allow access from anywhere
     },
     // Database configuration
     DATABASE: {

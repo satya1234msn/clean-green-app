@@ -1,7 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { defaultAPIs } from './apiService';
-
-const { authAPI, apiUtils } = defaultAPIs;
+import { authAPI, apiUtils } from './apiService';
 
 // Authentication service with backend integration
 export const authService = {
@@ -9,15 +7,15 @@ export const authService = {
   login: async (email, password) => {
     try {
       console.log('Login button pressed!', { email, password });
-      
+
       const response = await authAPI.login({ email, password });
-      
+
       if (response.status === 'success') {
         const { user, token } = response.data;
-        
+
         // Store auth data
         await apiUtils.storeAuthData(token, user);
-        
+
         console.log(`${user.role} login successful`);
         return { success: true, user, token };
       } else {
@@ -34,15 +32,15 @@ export const authService = {
   register: async (userData) => {
     try {
       console.log('Registration attempt:', userData);
-      
+
       const response = await authAPI.register(userData);
-      
+
       if (response.status === 'success') {
         const { user, token } = response.data;
-        
+
         // Store auth data
         await apiUtils.storeAuthData(token, user);
-        
+
         console.log(`${user.role} registration successful`);
         return { success: true, user, token };
       } else {
@@ -82,7 +80,7 @@ export const authService = {
   isAuthenticated: async () => {
     try {
       const { token, userData } = await apiUtils.getStoredAuthData();
-      
+
       if (!token || !userData) {
         return false;
       }
